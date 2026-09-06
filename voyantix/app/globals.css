@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #13262c;
+  --ink-soft: #3e5860;
+  --steel: #71868d;
+  --navy: #0e3438;
+  --navy-2: #0a2528;
+  --surface: #f6f4ee;
+  --card: #ffffff;
+  --line: #e1ddd1;
+  --line-soft: #edeae0;
+  --brass: #b5651d;
+  --brass-soft: #f3e1cb;
+  --teal: #1d6e5c;
+  --teal-soft: #deefe9;
+  --rust: #b23a22;
+  --rust-soft: #f6e1d8;
+  --accent: #c1740f;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-steel: var(--steel);
+  --color-navy: var(--navy);
+  --color-navy-2: var(--navy-2);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-brass: var(--brass);
+  --color-brass-soft: var(--brass-soft);
+  --color-teal: var(--teal);
+  --color-teal-soft: var(--teal-soft);
+  --color-rust: var(--rust);
+  --color-rust-soft: var(--rust-soft);
+  --color-accent: var(--accent);
+
+  --font-display: "Fraunces", serif;
+  --font-sans: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
+::selection {
+  background: var(--brass-soft);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.serif {
+  font-family: var(--font-display);
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+a {
+  color: inherit;
+}

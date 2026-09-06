@@ -1,0 +1,75 @@
+1
+00:00:00,000 --> 00:00:04,500
+This is how most demurrage claims
+still get calculated.
+
+2
+00:00:07,000 --> 00:00:12,000
+I've spent over ten years in shipping
+and chartering operations.
+
+3
+00:00:12,000 --> 00:00:17,500
+Every laytime statement I've seen has been
+rebuilt by hand, from a scanned SOF.
+
+4
+00:00:17,500 --> 00:00:21,000
+One wrong stoppage time and the
+demurrage figure is wrong.
+
+5
+00:00:21,500 --> 00:00:24,500
+So I built the tool I wanted.
+
+6
+00:00:26,000 --> 00:00:31,000
+Stoppages get recorded as they happen —
+not reconstructed from a PDF weeks later.
+
+7
+00:00:31,000 --> 00:00:34,500
+One tap for the start time.
+One tap to close it.
+
+8
+00:00:38,000 --> 00:00:43,000
+The laytime calculation runs
+off that record.
+
+9
+00:00:43,000 --> 00:00:49,000
+Allowed time, time used, what's excluded
+and why — and the exposure figure.
+
+10
+00:00:49,000 --> 00:00:52,000
+Calculated the same way every single time.
+
+11
+00:00:53,000 --> 00:00:58,000
+And every interval is on the record.
+
+12
+00:00:58,000 --> 00:01:03,000
+Which hours counted, which were excluded,
+which stoppage caused it.
+
+13
+00:01:03,000 --> 00:01:07,000
+When a counterparty disputes the claim,
+the working is already there.
+
+14
+00:01:08,000 --> 00:01:11,500
+It's called Voyantix. It's early.
+
+15
+00:01:11,500 --> 00:01:17,000
+I'm building it around how this work
+actually gets done.
+
+16
+00:01:17,000 --> 00:01:22,000
+If you handle laytime or demurrage and you'd
+tell me what I've got wrong — I'd like to hear it.
