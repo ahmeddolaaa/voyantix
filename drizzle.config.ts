@@ -1,10 +1,12 @@
 import type { Config } from "drizzle-kit";
 
 export default {
-  schema: "./db/schema.ts",
+  schema: "./db/schema/index.ts",
   out: "./db/migrations",
-  dialect: "sqlite",
+  dialect: "postgresql",
   dbCredentials: {
-    url: "file:./voyantix.db",
+    url:
+      process.env.DATABASE_URL ??
+      "postgresql://voyantix:voyantix@127.0.0.1:5432/voyantix_dev",
   },
 } satisfies Config;

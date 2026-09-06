@@ -1,10 +1,10 @@
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
-import path from "path";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 
-const dbPath = path.join(process.cwd(), "voyantix.db");
+const connectionString =
+  process.env.DATABASE_URL ??
+  "postgresql://voyantix:voyantix@127.0.0.1:5432/voyantix_dev";
 
-export const sqlite = createClient({ url: `file:${dbPath}` });
-
-export const db = drizzle(sqlite, { schema });
+export const pool = new Pool({ connectionString });
+export const db = drizzle(pool, { schema });
