@@ -1,14 +1,31 @@
 import { ButtonHTMLAttributes, ReactNode } from "react";
 
+/**
+ * Shared button styling.
+ *
+ * Disabled is a real visual state, not just an attribute: an administrator
+ * must be able to see that a submission is already in flight, otherwise the
+ * only feedback for a slow save is silence and they click again.
+ */
+const buttonBase =
+  "px-4 py-2 rounded-md text-[13px] font-medium transition-colors " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 " +
+  "focus-visible:ring-[var(--brass)] focus-visible:ring-offset-[var(--surface)] " +
+  "disabled:cursor-not-allowed";
+
+function disabledStyle(disabled: boolean | undefined) {
+  return disabled ? { opacity: 0.55 } : undefined;
+}
+
 export function PrimaryButton(
   props: ButtonHTMLAttributes<HTMLButtonElement>
 ) {
-  const { className = "", ...rest } = props;
+  const { className = "", style, ...rest } = props;
   return (
     <button
       {...rest}
-      className={`px-4 py-2 rounded-md text-[13px] font-medium text-white transition-colors ${className}`}
-      style={{ background: "var(--brass)" }}
+      className={`${buttonBase} text-white ${className}`}
+      style={{ background: "var(--brass)", ...disabledStyle(rest.disabled), ...style }}
     />
   );
 }
@@ -16,27 +33,29 @@ export function PrimaryButton(
 export function SecondaryButton(
   props: ButtonHTMLAttributes<HTMLButtonElement>
 ) {
-  const { className = "", ...rest } = props;
+  const { className = "", style, ...rest } = props;
   return (
     <button
       {...rest}
-      className={`px-4 py-2 rounded-md text-[13px] font-medium transition-colors ${className}`}
+      className={`${buttonBase} ${className}`}
       style={{
         background: "var(--card)",
         border: "1px solid var(--line)",
         color: "var(--ink)",
+        ...disabledStyle(rest.disabled),
+        ...style,
       }}
     />
   );
 }
 
 export function DangerButton(props: ButtonHTMLAttributes<HTMLButtonElement>) {
-  const { className = "", ...rest } = props;
+  const { className = "", style, ...rest } = props;
   return (
     <button
       {...rest}
-      className={`px-4 py-2 rounded-md text-[13px] font-medium text-white transition-colors ${className}`}
-      style={{ background: "var(--rust)" }}
+      className={`${buttonBase} text-white ${className}`}
+      style={{ background: "var(--rust)", ...disabledStyle(rest.disabled), ...style }}
     />
   );
 }
