@@ -15,6 +15,7 @@ import {
   companyConfigurations,
 } from "../db/schema";
 import { hashPassword } from "../lib/auth/password";
+import { seedProtectedEventTypes } from "../lib/master-data/seed-event-types";
 import { eq } from "drizzle-orm";
 
 async function main() {
@@ -67,11 +68,14 @@ async function main() {
     { userId: ops.id, organizationId: org.id, role: "operations" },
   ]);
 
+  const seeded = await seedProtectedEventTypes(org.id);
+
   console.log("\nBootstrap complete.\n");
   console.log("  Organization : Demo Shipping Co.");
   console.log("  Admin        : admin@demo.test");
   console.log("  Operations   : ops@demo.test");
   console.log(`  Password     : ${password}`);
+  console.log(`  Event types  : ${seeded.created} protected semantics seeded`);
   console.log("\nChange these before any real deployment.\n");
 
   await pool.end();
