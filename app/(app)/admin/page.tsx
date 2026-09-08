@@ -13,7 +13,7 @@ import { permissionsFor } from "@/lib/auth/permissions";
 const MASTER_DATA_SECTIONS: { label: string; href?: string; summary: string }[] = [
   { label: "Ports", href: "/admin/ports", summary: "Locations and local time" },
   { label: "Facilities", href: "/admin/facilities", summary: "Terminals and berths" },
-  { label: "Vessels", summary: "Optional master records" },
+  { label: "Vessels", href: "/admin/vessels", summary: "Optional master records" },
   { label: "Cargo", summary: "Commodities carried" },
   { label: "Stoppage reasons", summary: "Why operations paused" },
   { label: "Holiday calendars", summary: "Non-working days" },
