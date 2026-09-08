@@ -1,6 +1,24 @@
+import Link from "next/link";
 import { authorized } from "@/lib/auth/authorized";
 import { PageTitle, EmptyState, Card, SectionHeading } from "@/components/ui";
 import { permissionsFor } from "@/lib/auth/permissions";
+
+/**
+ * Master-data sections, in the order an administrator sets them up: a port
+ * has to exist before a facility can sit at one, and a holiday calendar
+ * before a port can default to it. Entries without an href are not built
+ * yet and are listed rather than hidden, so the shape of the section is
+ * visible instead of appearing to be missing.
+ */
+const MASTER_DATA_SECTIONS: { label: string; href?: string; summary: string }[] = [
+  { label: "Ports", href: "/admin/ports", summary: "Locations and local time" },
+  { label: "Facilities", summary: "Terminals and berths" },
+  { label: "Vessels", summary: "Optional master records" },
+  { label: "Cargo", summary: "Commodities carried" },
+  { label: "Stoppage reasons", summary: "Why operations paused" },
+  { label: "Holiday calendars", summary: "Non-working days" },
+  { label: "Event types", summary: "Operational milestones" },
+];
 
 export default async function AdminPage() {
   const ctx = await authorized("admin.configuration", async (c) => c);
@@ -31,10 +49,43 @@ export default async function AdminPage() {
         </div>
       </Card>
 
-      <EmptyState
-        title="Master data management arrives in Phase 2"
-        description="Vessels, ports, facilities, cargo, stoppage reasons, holiday calendars and users become self-service — no seed scripts."
-      />
+      <Card>
+        <SectionHeading>Master data</SectionHeading>
+        <p className="text-[13px] mb-4" style={{ color: "var(--steel)" }}>
+          The reference records voyages and contracts are built from.
+        </p>
+        <ul className="flex flex-col gap-1">
+          {MASTER_DATA_SECTIONS.map((s) =>
+            s.href ? (
+              <li key={s.label}>
+                <Link
+                  href={s.href}
+                  className="flex items-baseline justify-between py-2.5 px-3 -mx-1 rounded-md transition-colors hover:bg-[var(--line-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brass)]"
+                >
+                  <span className="text-[13px] font-medium" style={{ color: "var(--ink)" }}>
+                    {s.label}
+                  </span>
+                  <span className="text-[12px]" style={{ color: "var(--steel)" }}>
+                    {s.summary}
+                  </span>
+                </Link>
+              </li>
+            ) : (
+              <li
+                key={s.label}
+                className="flex items-baseline justify-between py-2.5 px-3 -mx-1"
+              >
+                <span className="text-[13px]" style={{ color: "var(--steel)" }}>
+                  {s.label}
+                </span>
+                <span className="text-[11.5px]" style={{ color: "var(--steel)" }}>
+                  Not yet available
+                </span>
+              </li>
+            )
+          )}
+        </ul>
+      </Card>
     </div>
   );
 }
