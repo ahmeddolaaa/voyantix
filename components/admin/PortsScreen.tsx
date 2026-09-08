@@ -120,6 +120,21 @@ export function PortsScreen({
     setFormError(null);
   }
 
+  /**
+   * Clears a field's error as soon as it is edited. Leaving "already exists"
+   * visible under a name the administrator has since changed reports a
+   * problem that no longer exists.
+   */
+  function updateField(key: keyof FormState, value: string) {
+    setForm((f) => ({ ...f, [key]: value }));
+    setFieldErrors((e) => {
+      if (!e[key]) return e;
+      const next = { ...e };
+      delete next[key];
+      return next;
+    });
+  }
+
   function closeForm() {
     setCreating(false);
     setEditing(null);
@@ -319,7 +334,7 @@ export function PortsScreen({
                   {...a}
                   value={form.name}
                   disabled={pending}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => updateField("name", e.target.value)}
                 />
               )}
             </Field>
@@ -330,7 +345,7 @@ export function PortsScreen({
                   {...a}
                   value={form.country}
                   disabled={pending}
-                  onChange={(e) => setForm({ ...form, country: e.target.value })}
+                  onChange={(e) => updateField("country", e.target.value)}
                 />
               )}
             </Field>
@@ -345,9 +360,7 @@ export function PortsScreen({
                   {...a}
                   value={form.unlocode}
                   disabled={pending}
-                  onChange={(e) =>
-                    setForm({ ...form, unlocode: e.target.value })
-                  }
+                  onChange={(e) => updateField("unlocode", e.target.value)}
                 />
               )}
             </Field>
@@ -366,9 +379,7 @@ export function PortsScreen({
                   invalid={a["aria-invalid"]}
                   disabled={pending}
                   value={form.defaultTimezone}
-                  onChange={(tz) =>
-                    setForm({ ...form, defaultTimezone: tz })
-                  }
+                  onChange={(tz) => updateField("defaultTimezone", tz)}
                 />
               )}
             </Field>
