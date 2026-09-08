@@ -168,3 +168,50 @@ describe("withDatabaseErrors", () => {
     ).rejects.toBeDefined();
   });
 });
+
+/**
+ * REGRESSION — the gap that let a broken mapper pass its own tests.
+ *
+ * Everything above throws errors from a raw pg Client. The actions do not:
+ * they go through Drizzle, which wraps the driver error in a
+ * DrizzleQueryError and moves the PostgreSQL code and constraint onto
+ * `cause`. A mapper that reads only the top level finds nothing there,
+ * returns null, and a duplicate name reaches the administrator as an
+ * unhandled exception — which is exactly what happened in the running app
+ * while these tests were green.
+ */
+describe("mapDatabaseError with errors thrown through Drizzle", () => {
+  it("maps a duplicate name raised by a real Drizzle insert", async () => {
+    const { db } = await import("@/db/client");
+    const { cargoes } = await import("@/db/schema");
+
+    let thrown: unknown = null;
+    try {
+      await db
+        .insert(cargoes)
+        .values({ organizationId: ORG_A, name: "Result Test Cargo" });
+    } catch (e) {
+      thrown = e;
+    }
+
+    expect(thrown).not.toBeNull();
+    // The shape that broke the mapper: nothing useful at the top level.
+    expect((thrown as { code?: string }).code).toBeUndefined();
+
+    const r = mapDatabaseError(thrown);
+    expect(r).not.toBeNull();
+    if (!r!.ok) expect(r!.code).toBe("DUPLICATE_NAME");
+  });
+
+  it("still refuses an unregistered constraint nested on cause", () => {
+    expect(
+      mapDatabaseError({ cause: { code: "23505", constraint: "unregistered_idx" } })
+    ).toBeNull();
+  });
+
+  it("does not hang on a deep or empty cause chain", () => {
+    expect(
+      mapDatabaseError({ cause: { cause: { cause: { cause: { cause: {} } } } } })
+    ).toBeNull();
+  });
+});
