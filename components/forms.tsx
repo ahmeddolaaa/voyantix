@@ -219,7 +219,12 @@ export function SubmitButton({
   pendingLabel?: string;
 }) {
   return (
-    <PrimaryButton {...rest} disabled={pending || rest.disabled} aria-busy={pending}>
+    <PrimaryButton
+      type={rest.type ?? "button"}
+      {...rest}
+      disabled={pending || rest.disabled}
+      aria-busy={pending}
+    >
       {pending ? pendingLabel ?? "Saving…" : children}
     </PrimaryButton>
   );

@@ -166,10 +166,23 @@ const CONSTRAINT_MAP: Readonly<
 type PostgresError = { code?: unknown; constraint?: unknown };
 
 function readPgError(e: unknown): { code: string; constraint: string } | null {
-  if (typeof e !== "object" || e === null) return null;
-  const { code, constraint } = e as PostgresError;
-  if (typeof code !== "string") return null;
-  return { code, constraint: typeof constraint === "string" ? constraint : "" };
+  // Drizzle wraps the driver error in a DrizzleQueryError and puts the real
+  // PostgreSQL error on `cause`, so the fields we need are never at the top
+  // level of what an action actually catches. Walk the chain rather than
+  // reading one level and silently finding nothing.
+  let current: unknown = e;
+  for (let depth = 0; depth < 5 && current !== null && current !== undefined; depth++) {
+    if (typeof current !== "object") return null;
+    const { code, constraint } = current as PostgresError;
+    if (typeof code === "string") {
+      return {
+        code,
+        constraint: typeof constraint === "string" ? constraint : "",
+      };
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return null;
 }
 
 /**
