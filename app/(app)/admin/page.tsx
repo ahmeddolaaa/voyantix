@@ -17,6 +17,7 @@ const MASTER_DATA_SECTIONS: { label: string; href?: string; summary: string }[] 
   { label: "Cargo", href: "/admin/cargo", summary: "Commodities carried" },
   { label: "Stoppage reasons", href: "/admin/stoppage-reasons", summary: "Why operations paused" },
   { label: "Holiday calendars", href: "/admin/holiday-calendars", summary: "Non-working days" },
+  { label: "Event types", href: "/admin/event-types", summary: "Port-call vocabulary" },
   { label: "Event types", summary: "Operational milestones" },
 ];
 
