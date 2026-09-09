@@ -16,7 +16,7 @@ const MASTER_DATA_SECTIONS: { label: string; href?: string; summary: string }[] 
   { label: "Vessels", href: "/admin/vessels", summary: "Optional master records" },
   { label: "Cargo", href: "/admin/cargo", summary: "Commodities carried" },
   { label: "Stoppage reasons", href: "/admin/stoppage-reasons", summary: "Why operations paused" },
-  { label: "Holiday calendars", summary: "Non-working days" },
+  { label: "Holiday calendars", href: "/admin/holiday-calendars", summary: "Non-working days" },
   { label: "Event types", summary: "Operational milestones" },
 ];
 
