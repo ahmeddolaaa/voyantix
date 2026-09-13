@@ -236,6 +236,7 @@ Cross-checked against handoff, architecture, frozen decisions, prior implementat
 | 2026-09 | PO1-PO3: ContractLaytimeTerm nullability; function LOAD/DISCHARGE enum; despatch optional | Product Owner (new) | 3 | frozen | See PRODUCT-OWNER DECISIONS section |
 | 2026-09 | PO4-PO5: LaytimePool is Contract-owned; fields set, settlementPolicy vocab withheld (B7) | Product Owner (new) | 3 | frozen | See PRODUCT-OWNER DECISIONS section |
 | 2026-09 | PO6: LaytimeRuleSet has NO status/lifecycle field. The generic setStatus template does not apply unless a future explicit decision introduces RuleSet lifecycle semantics. Do not add status by inference | Implementation review (new) | 3 | frozen | RuleSet actions are list/create/update only |
+| 2026-09 | PO7: ContractLaytimeTerm term-versioning STRUCTURE and the finalized-statement trigger (F14) are deferred to Phase 7, where statements exist. Architecture defines the RuleSetVersion structure explicitly but NOT a term-version structure; inventing one now is out of scope. Phase 3 does in-place CRUD; the single-row schema does not preclude a later row-level versioning column | Implementation review (new) | 3/7 | frozen | Phase 3 term actions are list/create/update/setStatus in place |
 
 ---
 
