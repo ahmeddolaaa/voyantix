@@ -9,11 +9,12 @@ import {
   integer,
   boolean,
   time,
+  date,
   foreignKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizations } from "./platform";
-import { holidayCalendars } from "./master-data";
+import { holidayCalendars, entityStatusEnum } from "./master-data";
 
 /**
  * COMMERCIAL LAYER — Phase 3
@@ -124,5 +125,42 @@ export const laytimeRuleSetVersions = pgTable(
       foreignColumns: [holidayCalendars.id, holidayCalendars.organizationId],
       name: "laytime_rule_set_versions_holiday_calendar_org_fk",
     }),
+  })
+);
+
+// ---------------------------------------------------------------------------
+// CONTRACT — fixture header. Not versioned: its commercial values live on
+// ContractLaytimeTerm (which IS versioned). The contract itself is just the
+// identity of the fixture — reference, counterparty, date. Deleting a
+// contract must never rewrite a finalized statement; historical safety comes
+// from the term/ruleset versioning and the resolvedRulesJson snapshot, not
+// from freezing the contract row.
+// ---------------------------------------------------------------------------
+export const contracts = pgTable(
+  "contracts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    reference: text("reference").notNull(),
+    counterparty: text("counterparty").notNull(),
+    contractDate: date("contract_date"),
+    status: entityStatusEnum("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("contracts_org_idx").on(t.organizationId),
+    // Composite unique target so ContractLaytimeTerm can hold a tenant-safe
+    // composite FK into this table in the next step.
+    orgIdCompositeIdx: unique("contracts_id_org_unique").on(
+      t.id,
+      t.organizationId
+    ),
+    referenceUniqueIdx: uniqueIndex("contracts_org_reference_unique_idx").on(
+      t.organizationId,
+      sql`lower(trim(${t.reference}))`
+    ),
   })
 );
