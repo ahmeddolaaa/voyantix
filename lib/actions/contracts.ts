@@ -102,6 +102,28 @@ export async function listContracts(
   });
 }
 
+export async function getContract(
+  id: string
+): Promise<ActionResult<ContractRow>> {
+  return contractAction<ContractRow>("masterdata.read", async (ctx) => {
+    const rows = await db
+      .select({
+        id: contracts.id,
+        reference: contracts.reference,
+        counterparty: contracts.counterparty,
+        contractDate: contracts.contractDate,
+        status: contracts.status,
+      })
+      .from(contracts)
+      .where(and(eq(contracts.id, id), eq(contracts.organizationId, ctx.organizationId)));
+
+    if (rows.length === 0) {
+      return fail<ContractRow>("NOT_FOUND", "Contract not found.");
+    }
+    return ok(rows[0] as ContractRow);
+  });
+}
+
 export async function createContract(
   input: ContractInput
 ): Promise<ActionResult<{ id: string }>> {
