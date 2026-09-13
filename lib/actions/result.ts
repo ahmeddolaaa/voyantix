@@ -111,6 +111,10 @@ const CONSTRAINT_MAP: Readonly<
     code: "DUPLICATE_NAME",
     message: "A rule set with this name already exists.",
   },
+  laytime_pools_contract_name_unique_idx: {
+    code: "DUPLICATE_NAME",
+    message: "A pool with this name already exists on this contract.",
+  },
 
   // --- unique violations: codes and identifiers ----------------------------
   ports_org_unlocode_unique_idx: {
