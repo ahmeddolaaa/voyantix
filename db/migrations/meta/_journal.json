@@ -15,6 +15,13 @@
       "when": 1788778870315,
       "tag": "0001_sticky_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788947115004,
+      "tag": "0002_lonely_whiplash",
+      "breakpoints": true
     }
   ]
 }
