@@ -231,6 +231,9 @@ export const cargoes = pgTable(
   },
   (t) => ({
     orgIdx: index("cargoes_org_idx").on(t.organizationId),
+    // Composite unique target so ContractLaytimeTerm can hold a tenant-safe
+    // composite FK into this table.
+    orgIdCompositeIdx: unique("cargoes_id_org_unique").on(t.id, t.organizationId),
     nameUniqueIdx: uniqueIndex("cargoes_org_name_unique_idx").on(
       t.organizationId,
       sql`lower(trim(${t.name}))`

@@ -233,9 +233,62 @@ Cross-checked against handoff, architecture, frozen decisions, prior implementat
 | 2026-09 | Phase 1 complete (auth/tenancy/authz, 23 tests) | Session | 1 | frozen | Boundary for all later work |
 | 2026-09 | Phase 2 complete incl. Event Types (`13bdfbc`) | This session | 2 | frozen | Master data ready for Phase 3 |
 | 2026-09 | Phase 3 = Commercial layer confirmed as the official next phase | Implementation Sequence | 3 | frozen | Next work item |
+| 2026-09 | PO1-PO3: ContractLaytimeTerm nullability; function LOAD/DISCHARGE enum; despatch optional | Product Owner (new) | 3 | frozen | See PRODUCT-OWNER DECISIONS section |
+| 2026-09 | PO4-PO5: LaytimePool is Contract-owned; fields set, settlementPolicy vocab withheld (B7) | Product Owner (new) | 3 | frozen | See PRODUCT-OWNER DECISIONS section |
 
 ---
 
 # ROADMAP MAINTENANCE POLICY
 
 After every meaningful milestone: update CURRENT STATE, update phase status, record new decisions in the Decision Log, record newly discovered dependencies, close resolved open questions, preserve completed history, and confirm the next step still matches this file. Before starting a new phase in any future session: (1) read this file, (2) read the current phase section, (3) verify the actual repo state, (4) execute ONLY the next approved step, (5) return here when the milestone completes. This file answers "where are we, where are we going, why, what is decided, what is not, and what happens next" — so no session needs to ask.
+
+---
+
+# PRODUCT-OWNER DECISIONS — Phase 3 commercial detail
+
+> NEW decisions made by the Product Owner (2026-09), NOT inherited from the
+> approved architecture. The architecture named these fields and fixed the
+> Contract-vs-Term / RuleSet-vs-Version separation (F12–F14); it did NOT fix
+> the nullability of most commercial fields, the function representation, or
+> LaytimePool ownership. Those are decided here and are frozen from now on.
+
+## PO1 — ContractLaytimeTerm.function
+NOT NULL. Vocabulary fixed to LOAD / DISCHARGE, stored as a DB enum. There is
+no `function = NULL` "both" meaning. Generic applicability is expressed only
+through nullable scope dimensions (portId, cargoId).
+
+## PO2 — ContractLaytimeTerm field nullability
+| Field | Nullable | Storage |
+|---|---|---|
+| function | NOT NULL | LOAD/DISCHARGE enum |
+| portId | NULL | tenant-safe composite FK |
+| cargoId | NULL | tenant-safe composite FK |
+| allowance | NOT NULL | numeric (no fixed precision) |
+| allowanceUnit | NOT NULL | text |
+| demurrageRate | NOT NULL | numeric |
+| despatchRate | NULL | numeric |
+| despatchBasis | NULL | text |
+| turnTimeHours | NULL | numeric |
+| turnTimeTrigger | NULL | text |
+| commencementRule | NOT NULL | text |
+| ruleSetVersionId | NOT NULL | tenant-safe composite FK |
+| poolId | NULL | tenant-safe composite FK |
+
+Withheld vocabularies (allowanceUnit, despatchBasis, turnTimeTrigger,
+commencementRule) are stored as free text now — no enum/CHECK invented. Their
+allowed values remain withheld under B1/B2 and are NOT reconstructed.
+
+## PO3 — Despatch optionality
+despatchRate and despatchBasis are optional; NULL means despatch is not
+configured for that term. No B7 settlement semantics invented.
+
+## PO4 — LaytimePool ownership
+CONTRACT-OWNED. A pool belongs to one Contract and may be referenced by
+several ContractLaytimeTerm rows of that same contract:
+Contract → many LaytimePools → referenced by many terms (term.poolId optional).
+Not Organization-global; not Term-owned.
+
+## PO5 — LaytimePool fields
+contractId (NOT NULL, tenant-safe composite FK), totalAllowance (NOT NULL,
+numeric), allowanceUnit (NOT NULL, text), settlementPolicy (NOT NULL, text).
+settlementPolicy vocabulary remains withheld (B7) — not invented.

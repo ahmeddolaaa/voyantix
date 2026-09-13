@@ -29,6 +29,13 @@
       "when": 1789286924247,
       "tag": "0003_fair_chameleon",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789288552483,
+      "tag": "0004_colorful_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }
