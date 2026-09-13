@@ -107,6 +107,10 @@ const CONSTRAINT_MAP: Readonly<
     code: "DUPLICATE_NAME",
     message: "A holiday calendar with this name already exists.",
   },
+  laytime_rule_sets_org_name_unique_idx: {
+    code: "DUPLICATE_NAME",
+    message: "A rule set with this name already exists.",
+  },
 
   // --- unique violations: codes and identifiers ----------------------------
   ports_org_unlocode_unique_idx: {
