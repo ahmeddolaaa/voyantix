@@ -21,6 +21,7 @@ const MASTER_DATA_SECTIONS: { label: string; href?: string; summary: string }[] 
 ];
 
 const COMMERCIAL_SECTIONS: { label: string; href?: string; summary: string }[] = [
+  { label: "Contracts", href: "/admin/contracts", summary: "Fixtures, terms and pools" },
   { label: "Rule sets", href: "/admin/rule-sets", summary: "Reusable laytime semantics" },
 ];
 
