@@ -88,6 +88,31 @@ export async function listLaytimeRuleSets(): Promise<ActionResult<LaytimeRuleSet
   });
 }
 
+export async function getLaytimeRuleSet(
+  id: string
+): Promise<ActionResult<LaytimeRuleSetRow>> {
+  return ruleSetAction<LaytimeRuleSetRow>("masterdata.read", async (ctx) => {
+    const rows = await db
+      .select({
+        id: laytimeRuleSets.id,
+        name: laytimeRuleSets.name,
+        description: laytimeRuleSets.description,
+      })
+      .from(laytimeRuleSets)
+      .where(
+        and(
+          eq(laytimeRuleSets.id, id),
+          eq(laytimeRuleSets.organizationId, ctx.organizationId)
+        )
+      );
+
+    if (rows.length === 0) {
+      return fail<LaytimeRuleSetRow>("NOT_FOUND", "Rule set not found.");
+    }
+    return ok(rows[0] as LaytimeRuleSetRow);
+  });
+}
+
 export async function createLaytimeRuleSet(
   input: LaytimeRuleSetInput
 ): Promise<ActionResult<{ id: string }>> {
