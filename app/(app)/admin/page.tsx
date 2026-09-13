@@ -20,6 +20,10 @@ const MASTER_DATA_SECTIONS: { label: string; href?: string; summary: string }[] 
   { label: "Event types", href: "/admin/event-types", summary: "Port-call vocabulary" },
 ];
 
+const COMMERCIAL_SECTIONS: { label: string; href?: string; summary: string }[] = [
+  { label: "Rule sets", href: "/admin/rule-sets", summary: "Reusable laytime semantics" },
+];
+
 export default async function AdminPage() {
   const ctx = await authorized("admin.configuration", async (c) => c);
   const perms = permissionsFor(ctx.role);
@@ -56,6 +60,44 @@ export default async function AdminPage() {
         </p>
         <ul className="flex flex-col gap-1">
           {MASTER_DATA_SECTIONS.map((s) =>
+            s.href ? (
+              <li key={s.label}>
+                <Link
+                  href={s.href}
+                  className="flex items-baseline justify-between py-2.5 px-3 -mx-1 rounded-md transition-colors hover:bg-[var(--line-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brass)]"
+                >
+                  <span className="text-[13px] font-medium" style={{ color: "var(--ink)" }}>
+                    {s.label}
+                  </span>
+                  <span className="text-[12px]" style={{ color: "var(--steel)" }}>
+                    {s.summary}
+                  </span>
+                </Link>
+              </li>
+            ) : (
+              <li
+                key={s.label}
+                className="flex items-baseline justify-between py-2.5 px-3 -mx-1"
+              >
+                <span className="text-[13px]" style={{ color: "var(--steel)" }}>
+                  {s.label}
+                </span>
+                <span className="text-[11.5px]" style={{ color: "var(--steel)" }}>
+                  Not yet available
+                </span>
+              </li>
+            )
+          )}
+        </ul>
+      </Card>
+
+      <Card>
+        <SectionHeading>Commercial</SectionHeading>
+        <p className="text-[13px] mb-4" style={{ color: "var(--steel)" }}>
+          Contracts and the laytime terms and rule sets they are built from.
+        </p>
+        <ul className="flex flex-col gap-1">
+          {COMMERCIAL_SECTIONS.map((s) =>
             s.href ? (
               <li key={s.label}>
                 <Link
