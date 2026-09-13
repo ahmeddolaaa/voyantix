@@ -125,6 +125,10 @@ const CONSTRAINT_MAP: Readonly<
     code: "DUPLICATE_CODE",
     message: "A vessel with this IMO number already exists.",
   },
+  contracts_org_reference_unique_idx: {
+    code: "DUPLICATE_CODE",
+    message: "A contract with this reference already exists.",
+  },
   operational_event_types_org_code_unique_idx: {
     code: "DUPLICATE_CODE",
     message: "An event type with this code already exists.",
