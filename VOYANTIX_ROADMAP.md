@@ -32,13 +32,12 @@
 ### Completed
 - **Phase 1 ✅** — Auth, Membership, Session, Roles, Tenancy, Authorization. 23 tests (Phase 1) + full suite green (69 tests total as of Event Types).
 - **Phase 2 ✅** — Master Data complete. Schema (8 tables, composite FKs, CHECK constraints), shared foundations (forms, ui, DataTable, TimezoneCombobox), and every admin screen: Ports · Facilities · Vessels · Cargo · Stoppage Reasons · Holiday Calendars · **Event Types** (the final Phase 2 screen — action + 12 tests + UI, browser-verified).
+- **Phase 4 ✅** — Operational spine complete. `voyages` (reference generated from CompanyConfiguration pattern via ReferenceSequence, manual override supported) · `voyage_port_calls` (effectiveTimezone snapshotted per F28; unique sequence per voyage per PO10) · `cargo_plans`. PO11 term resolution implemented in full with all seven states distinguishable. Migrations `0005`–`0007`. 65 tests (17 + 24 + 24); full suite 195 green. Voyages list + voyage detail screens browser-verified end to end.
 - **CompanyConfiguration + ReferenceSequence ✅** — implemented inside `platform.ts` (not a separate file), migrated and live in the database as of `0004_colorful_major_mapleleaf`. Fields as actually implemented: `voyageReferencePattern` (text, NOT NULL, default `"VOY-{YY}{SEQ:4}"`), `defaultTimezone` (text, NOT NULL, default `"UTC"`, application/display only per F28), `defaultExcludedWeekdays` (**jsonb**, not integer[] — intentional deviation from the `laytimeRuleSetVersions` array convention, kept as-is since already migrated), no `defaultHolidayCalendarId` column exists. `referenceSequences`: `organizationId` + `scope` + `nextValue`, unique per (org, scope), transactional counter. This predates/parallels this session's Phase 4 planning and was discovered only via direct repo inspection — the roadmap had not been updated to reflect it.
 
 ### Currently next
-- **Phase 4 — Voyage + PortCall.** Phase 3 (commercial layer) is COMPLETE: schema, all five entity action sets, the applicability resolver (130 tests), and the full admin UI (rule sets + versions, contracts with terms and pools), all browser-verified through commit `a5d23f1`. Next is the operational spine — the Voyage + VoyagePortCall model, CargoPlan re-parenting, and backfill of any existing voyages. Not started.
+- **Phase 5 — Operational layer.** Phase 4 (Voyage + PortCall + CargoPlan) is COMPLETE through commit `212cd00`: three tables, all action sets, PO11 term resolution, 65 new tests, and the full admin UI — every layer browser-verified. Next is OperationalEvent · Stoppage · ShiftPerformance, all hanging off `portCallId`. Not started.
 - Still deferred: ContractLaytimeTerm term-versioning + finalized-statement trigger (F14) → Phase 7 (PO7).
-- Phase 4 schema work should build ON TOP of the existing `companyConfigurations`/`referenceSequences` tables — do not redesign or duplicate them. Next actual schema step: `Voyage`.
-
 ### Verification ladder (never conflate these)
 `implemented` → `typechecked (tsc --noEmit)` → `tested (vitest on PostgreSQL)` → `browser/runtime verified`. Phase 2 reached the top rung. Nothing in Phase 3+ is verified yet.
 
@@ -56,8 +55,8 @@
 | 1 | Platform — Auth/Tenancy/Authorization | ✅ COMPLETE | — |
 | 2 | Master Data + Company Config + admin screens | ✅ COMPLETE | — |
 | 3 | Commercial — Contract, Terms, RuleSets, Pools, resolver | ✅ COMPLETE | — |
-| 4 | Voyage + PortCall restructure + CargoPlan re-parent + backfill | ⬅️ NEXT | — |
-| 5 | Operational — Event, Stoppage, ShiftPerformance re-parent | ⏳ FUTURE | — |
+| 4 | Voyage + PortCall + CargoPlan | ✅ COMPLETE | — |
+| 5 | Operational — Event, Stoppage, ShiftPerformance | ⬅️ NEXT | — |
 | 6 | Laytime Engine rebuild | ⏳ FUTURE | 🛑 B1–B5, B8 |
 | 7 | Calculation + Statement persistence + StatementScopeResult | ⏳ FUTURE | 🛑 B7 |
 | 8 | Professional UX | ⏳ FUTURE | — |
@@ -247,6 +246,7 @@ Cross-checked against handoff, architecture, frozen decisions, prior implementat
 
 | 2026-09-14 | Discovered CompanyConfiguration + ReferenceSequence were already implemented and migrated (inside platform.ts, migration 0004) before this session's Phase 4 planning began — roadmap CURRENT STATE and migration count had gone stale. A duplicate company-config.ts schema file was drafted based on the stale roadmap but never written to disk (caught via a TypeScript export-collision error before any file existed). Roadmap corrected to reflect actual repo state | This session | 4 | frozen | No code impact — the duplicate was never created. PO8-PO11 (Voyage/VoyagePortCall/ContractLaytimeTermId decisions) remain valid and unaffected |
 
+| 2026-09-14 | Phase 4 COMPLETE (commit 212cd00): Voyage + VoyagePortCall + CargoPlan, schema through browser-verified UI, incl. PO11 resolution and F28 timezone snapshot. Two operational lessons recorded: drizzle-kit orders cross-table ALTERs wrong (a composite-unique ALTER on an existing table lands AFTER the FK that needs it — reorder before applying), and `drizzle-kit migrate` swallows SQL errors entirely, so applying via `psql -f` is how the real error surfaces | This session | 4 | milestone | Next: Phase 5 Operational layer |
 ---
 
 # ROADMAP MAINTENANCE POLICY
