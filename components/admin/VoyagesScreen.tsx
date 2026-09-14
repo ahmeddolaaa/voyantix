@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import {
   createVoyage,
@@ -225,9 +226,13 @@ export function VoyagesScreen({
       header: "Reference",
       sortable: true,
       render: (r) => (
-        <span style={{ fontWeight: 500, color: "var(--ink)" }}>
+        <Link
+          href={`/admin/voyages/${r.id}`}
+          className="hover:underline"
+          style={{ fontWeight: 500, color: "var(--brass)" }}
+        >
           {r.voyageReference}
-        </span>
+        </Link>
       ),
     },
     {
