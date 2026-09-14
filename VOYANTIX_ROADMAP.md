@@ -23,19 +23,21 @@
 
 - **Repo:** `github.com/ahmeddolaaa/voyantix` — local branch `main` tracks `origin/rebuild`. Push form: `git push origin main:rebuild`.
 - **Work folder:** `/workspaces/voyantix/voyantix` (nested). Runs in GitHub Codespaces.
-- **Latest commit:** `13bdfbc` (Event Types placeholder cleanup).
+- **Latest commit:** `124c300` (rebuild HEAD as of this session; roadmap tracking had fallen behind — see Decision Log entry below).
 - **Stack:** Next.js 16.3.3 · React 19.2.8 · Drizzle ORM · PostgreSQL. Turbopack (`next dev`).
-- **DB:** `postgresql://voyantix:voyantix@127.0.0.1:5432/voyantix_dev` (default in code; no real `.env`). Migrations applied: `0000_platform_baseline`, `0001_sticky_cloak`.
+- **DB:** `postgresql://voyantix:voyantix@127.0.0.1:5432/voyantix_dev` (default in code; no real `.env`). - **Migrations applied:** `0000_platform_baseline`, `0001_sticky_cloak`, `0002_lonely_whiplash`, `0003_fair_chameleon`, `0004_colorful_major_mapleleaf`.
 - **Schema files:** `db/schema/platform.ts` (Phase 1), `db/schema/master-data.ts` (Phase 2).
 - **Login:** `admin@demo.test` / `voyantix`.
 
 ### Completed
 - **Phase 1 ✅** — Auth, Membership, Session, Roles, Tenancy, Authorization. 23 tests (Phase 1) + full suite green (69 tests total as of Event Types).
 - **Phase 2 ✅** — Master Data complete. Schema (8 tables, composite FKs, CHECK constraints), shared foundations (forms, ui, DataTable, TimezoneCombobox), and every admin screen: Ports · Facilities · Vessels · Cargo · Stoppage Reasons · Holiday Calendars · **Event Types** (the final Phase 2 screen — action + 12 tests + UI, browser-verified).
+- **CompanyConfiguration + ReferenceSequence ✅** — implemented inside `platform.ts` (not a separate file), migrated and live in the database as of `0004_colorful_major_mapleleaf`. Fields as actually implemented: `voyageReferencePattern` (text, NOT NULL, default `"VOY-{YY}{SEQ:4}"`), `defaultTimezone` (text, NOT NULL, default `"UTC"`, application/display only per F28), `defaultExcludedWeekdays` (**jsonb**, not integer[] — intentional deviation from the `laytimeRuleSetVersions` array convention, kept as-is since already migrated), no `defaultHolidayCalendarId` column exists. `referenceSequences`: `organizationId` + `scope` + `nextValue`, unique per (org, scope), transactional counter. This predates/parallels this session's Phase 4 planning and was discovered only via direct repo inspection — the roadmap had not been updated to reflect it.
 
 ### Currently next
 - **Phase 4 — Voyage + PortCall.** Phase 3 (commercial layer) is COMPLETE: schema, all five entity action sets, the applicability resolver (130 tests), and the full admin UI (rule sets + versions, contracts with terms and pools), all browser-verified through commit `a5d23f1`. Next is the operational spine — the Voyage + VoyagePortCall model, CargoPlan re-parenting, and backfill of any existing voyages. Not started.
 - Still deferred: ContractLaytimeTerm term-versioning + finalized-statement trigger (F14) → Phase 7 (PO7).
+- Phase 4 schema work should build ON TOP of the existing `companyConfigurations`/`referenceSequences` tables — do not redesign or duplicate them. Next actual schema step: `Voyage`.
 
 ### Verification ladder (never conflate these)
 `implemented` → `typechecked (tsc --noEmit)` → `tested (vitest on PostgreSQL)` → `browser/runtime verified`. Phase 2 reached the top rung. Nothing in Phase 3+ is verified yet.
@@ -178,6 +180,7 @@ Each is approved/final. To change one, record in the Decision Log what evidence 
 | F25 | Migrations are versioned SQL (no `drizzle-kit push` as the source of truth); PostgreSQL only for integration/concurrency/integrity tests | Architecture | All | ✅ |
 | F26 | Tenant-isolation tests use two real orgs with real data through the real repository path — never fake IDs | Architecture | All | ✅ |
 | F27 | Visual identity tokens in `app/globals.css` are frozen: brass = primary action, teal = positive/active, rust = negative/delete. Fraunces headings, IBM Plex Sans UI, IBM Plex Mono figures | Handoff §7 | 8 | ✅ (tokens) |
+| F28 | `VoyagePortCall.effectiveTimezone` resolves `Port.defaultTimezone → "UTC"` only. `CompanyConfiguration.defaultTimezone` is application/display-only and NEVER participates in engine/calculation timezone resolution. This decision resolves a contradiction in the approved Phase 2 FINAL architecture doc, where COMPANY CONFIG (§/table) and Parameter Ownership Matrix explicitly state `CompanyConfiguration.defaultTimezone` is "never used by the engine" / "display only", while Section D's fallback chain (`Port.defaultTimezone → CompanyConfiguration.defaultTimezone → "UTC"`) contradicted that. Resolved in favor of the repeated ownership rule + multi-country PortCall design. Section D's three-step chain is SUPERSEDED by this decision; the historical wording is preserved here, not deleted, for audit purposes | Product Owner (new) | 4 | ✅ |
 
 ---
 
@@ -240,6 +243,9 @@ Cross-checked against handoff, architecture, frozen decisions, prior implementat
 | 2026-09 | PO7: ContractLaytimeTerm term-versioning STRUCTURE and the finalized-statement trigger (F14) are deferred to Phase 7, where statements exist. Architecture defines the RuleSetVersion structure explicitly but NOT a term-version structure; inventing one now is out of scope. Phase 3 does in-place CRUD; the single-row schema does not preclude a later row-level versioning column | Implementation review (new) | 3/7 | frozen | Phase 3 term actions are list/create/update/setStatus in place |
 | 2026-09 | Phase 3 BACKEND complete (commit 2d783db): 5 commercial tables + 5 entity action sets + pure applicability resolver, 130 tests green on PostgreSQL. Remaining Phase 3 work is the admin UI | This session | 3 | milestone | Next session: build Phase 3 commercial UI |
 | 2026-09 | Phase 3 COMPLETE (commit a5d23f1): full commercial admin UI (rule sets + versions, contracts with terms and pools) browser-verified. Backend + UI done | This session | 3 | milestone | Next: Phase 4 Voyage + PortCall |
+| 2026-09-14 | F28: Resolved internal contradiction in Phase 2 FINAL architecture doc between COMPANY CONFIG/Parameter Ownership Matrix ("CompanyConfiguration.defaultTimezone never used by engine") and Section D fallback chain (which included it). Decision: engine timezone resolution is Port.defaultTimezone → UTC only; CompanyConfiguration.defaultTimezone stays display-only | Product Owner (new) | 4 | frozen | Section D fallback chain in the architecture doc is superseded; CompanyConfiguration schema unaffected (field stays, role changes) |
+
+| 2026-09-14 | Discovered CompanyConfiguration + ReferenceSequence were already implemented and migrated (inside platform.ts, migration 0004) before this session's Phase 4 planning began — roadmap CURRENT STATE and migration count had gone stale. A duplicate company-config.ts schema file was drafted based on the stale roadmap but never written to disk (caught via a TypeScript export-collision error before any file existed). Roadmap corrected to reflect actual repo state | This session | 4 | frozen | No code impact — the duplicate was never created. PO8-PO11 (Voyage/VoyagePortCall/ContractLaytimeTermId decisions) remain valid and unaffected |
 
 ---
 
@@ -297,3 +303,70 @@ Not Organization-global; not Term-owned.
 contractId (NOT NULL, tenant-safe composite FK), totalAllowance (NOT NULL,
 numeric), allowanceUnit (NOT NULL, text), settlementPolicy (NOT NULL, text).
 settlementPolicy vocabulary remains withheld (B7) — not invented.
+
+## PO8 — Voyage.status vocabulary
+`voyageStatusEnum`: ACTIVE | COMPLETED | CANCELLED. Default ACTIVE.
+Purely administrative:
+- ACTIVE = voyage is administratively open/active
+- COMPLETED = voyage has been administratively closed as completed
+- CANCELLED = voyage has been administratively cancelled
+NOT mechanically derived from PortCall state. Exclusion from future
+calculations/reports for CANCELLED voyages is NOT frozen by this
+decision. No enforced transitions in Phase 4.
+
+## PO9 — VoyagePortCall.status vocabulary
+`portCallStatusEnum`: ACTIVE | COMPLETED | CANCELLED. Default ACTIVE.
+Purely administrative:
+- ACTIVE = PortCall remains administratively open
+- COMPLETED = PortCall has been administratively closed as completed
+- CANCELLED = PortCall has been administratively cancelled
+Never represents NOR, berth, commencement, completion, departure, or
+any other operational fact — those remain OperationalEvent semantics
+(Phase 5). No enforced transitions in Phase 4.
+
+## PO10 — VoyagePortCall.sequence semantics
+Integer, NOT NULL, starts at 1. Unique per voyage via DB constraint
+`unique(voyageId, sequence)`. Gaps allowed. Reordering via an explicit
+action that renumbers affected rows in one transaction; insertion
+between existing calls may shift later sequence values. Represents
+intended visiting order only — never a timestamp.
+
+## PO11 — ContractLaytimeTermId resolution timing (AMENDED)
+Amended during Phase 4 review: the architecture allows multiple
+CargoPlan rows per PortCall (1─* CargoPlan) while the current PortCall
+model stores a single ContractLaytimeTermId column — the original memo
+did not define behavior for this case.
+
+NOT auto-resolved at PortCall creation. Resolved only via an explicit
+`resolveContractLaytimeTerm` action; manually set only via a separate
+`overrideContractLaytimeTerm` action. Same column for both outcomes,
+distinguished in the audit log (action: "resolve" | "override"). NO
+automatic re-resolution when contract/port/function/cargo later
+change — always explicit, protecting historical reproducibility (F20)
+and commercial intent.
+
+Contract scope: resolution runs ONLY against ContractLaytimeTerms
+belonging to Voyage.contractId's Contract — never org-wide terms. If
+Voyage.contractId is null → explicit failure CONTRACT_REQUIRED, no
+guessing.
+
+Cargo context (from the PortCall's CargoPlan rows):
+- 0 CargoPlans → INSUFFICIENT_CARGO_CONTEXT (not "zero matching
+  terms"); contractLaytimeTermId unchanged
+- Exactly 1 CargoPlan → its cargoId feeds the pure resolver normally
+- >1 CargoPlans → MULTIPLE_CARGO_CONTEXTS; no automatic choice of
+  cargo (no first/primary/latest), no silent aggregation;
+  contractLaytimeTermId unchanged. Intentional Phase 4 limitation
+  protecting commercial correctness — no new entity introduced, no
+  change to the single-term-per-PortCall model in this phase.
+
+Implementation must distinguish these 7 states explicitly (not
+collapsed into one generic null/error): not yet resolved · insufficient
+cargo context · multiple cargo contexts · zero matching terms ·
+ambiguous matching terms · successfully resolved · manually overridden.
+Exact UI deferred; server/action semantics must be explicit now.
+
+Open risk carried forward: the underlying single-column-per-PortCall
+model still cannot represent genuinely different terms for different
+cargoes on the same call — MULTIPLE_CARGO_CONTEXTS is the deliberate
+Phase 4 guard against silently picking wrong, not a solution.

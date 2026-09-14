@@ -66,6 +66,12 @@ export const vessels = pgTable(
   (t) => ({
     orgIdx: index("vessels_org_idx").on(t.organizationId),
     orgNameIdx: index("vessels_org_name_idx").on(t.organizationId, t.name),
+    // Composite unique target so Voyage can hold a tenant-safe composite FK
+    // into this table (voyages.vesselOrgFk, Phase 4).
+    orgIdCompositeIdx: unique("vessels_id_org_unique").on(
+      t.id,
+      t.organizationId
+    ),
     // IMO unique within org, only when present. Name is deliberately NOT
     // unique — vessel names collide across the industry.
     imoUniqueIdx: uniqueIndex("vessels_org_imo_unique_idx")

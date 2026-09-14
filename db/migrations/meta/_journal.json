@@ -36,6 +36,13 @@
       "when": 1789288552483,
       "tag": "0004_colorful_major_mapleleaf",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789380668317,
+      "tag": "0005_nebulous_red_shift",
+      "breakpoints": true
     }
   ]
 }

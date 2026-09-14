@@ -133,6 +133,10 @@ const CONSTRAINT_MAP: Readonly<
     code: "DUPLICATE_CODE",
     message: "A contract with this reference already exists.",
   },
+    voyages_org_reference_unique_idx: {
+    code: "DUPLICATE_CODE",
+    message: "A voyage with this reference already exists.",
+  },
   operational_event_types_org_code_unique_idx: {
     code: "DUPLICATE_CODE",
     message: "An event type with this code already exists.",
@@ -157,6 +161,14 @@ const CONSTRAINT_MAP: Readonly<
   facilities_port_org_fk: {
     code: "NOT_FOUND",
     message: "The selected port could not be found.",
+  },
+    voyages_vessel_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected vessel could not be found.",
+  },
+  voyages_contract_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected contract could not be found.",
   },
 
   // --- check constraints ----------------------------------------------------
