@@ -38,7 +38,19 @@ export type ActionErrorCode =
   | "INVALID_STATE"
   /** Authenticated, but lacking the required permission in the ACTIVE
    *  organization. Never used for cross-tenant rows. */
-  | "FORBIDDEN";
+  | "FORBIDDEN"
+  /** PO11: term resolution needs the voyage's contract, and none is set.
+   *  Distinct from NOT_FOUND — nothing is missing, a choice is. */
+  | "CONTRACT_REQUIRED"
+  /** PO11: the port call has no cargo plan, so applicability has no cargo
+   *  to resolve against. NOT the same as "no term matched". */
+  | "INSUFFICIENT_CARGO_CONTEXT"
+  /** PO11: the port call carries several cargo plans. Applicability needs
+   *  exactly one cargo, and picking one silently would be a guess. */
+  | "MULTIPLE_CARGO_CONTEXTS"
+  /** PO11 / F15: several terms apply and none is strictly more specific.
+   *  The stored term is left untouched and nothing is calculated. */
+  | "AMBIGUOUS_TERM";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -181,6 +193,18 @@ const CONSTRAINT_MAP: Readonly<
   voyage_port_calls_voyage_sequence_unique_idx: {
     code: "CONFLICT",
     message: "This voyage already has a port call at that sequence number.",
+  },
+  cargo_plans_port_call_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected port call could not be found.",
+  },
+  cargo_plans_cargo_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected cargo could not be found.",
+  },
+  cargo_plans_port_call_cargo_unique_idx: {
+    code: "CONFLICT",
+    message: "This port call already has a plan for that cargo.",
   },
     voyages_vessel_org_fk: {
     code: "NOT_FOUND",

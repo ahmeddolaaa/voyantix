@@ -50,6 +50,13 @@
       "when": 1789383159574,
       "tag": "0006_rapid_jazinda",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789384022641,
+      "tag": "0007_happy_puppet_master",
+      "breakpoints": true
     }
   ]
 }

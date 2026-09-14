@@ -8,11 +8,12 @@ import {
   unique,
   index,
   integer,
+  numeric,
   foreignKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizations } from "./platform";
-import { vessels, ports, facilities } from "./master-data";
+import { vessels, ports, facilities, cargoes } from "./master-data";
 import { contracts, contractLaytimeTerms, contractFunctionEnum } from "./commercial";
 
 /**
@@ -161,6 +162,54 @@ export const voyagePortCalls = pgTable(
         contractLaytimeTerms.organizationId,
       ],
       name: "voyage_port_calls_term_org_fk",
+    }),
+  })
+);
+
+/**
+ * CARGO PLAN — what is meant to be loaded or discharged at a port call.
+ * ---------------------------------------------------------------------------
+ * A port call may carry several cargo plans (1─* per the architecture).
+ * That matters for PO11: term applicability needs exactly one cargo, so a
+ * port call with more than one plan cannot be resolved automatically and
+ * the resolve action reports MULTIPLE_CARGO_CONTEXTS rather than guessing.
+ *
+ * Quantities are numeric with no invented precision, matching the
+ * commercial layer. actualQuantityMt is null until the operation is done.
+ * ---------------------------------------------------------------------------
+ */
+export const cargoPlans = pgTable(
+  "cargo_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    portCallId: uuid("port_call_id").notNull(),
+    cargoId: uuid("cargo_id").notNull(),
+    plannedQuantityMt: numeric("planned_quantity_mt").notNull(),
+    actualQuantityMt: numeric("actual_quantity_mt"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("cargo_plans_org_idx").on(t.organizationId),
+    portCallIdx: index("cargo_plans_port_call_idx").on(t.portCallId),
+    // One plan per cargo per port call: two rows for the same cargo on the
+    // same call would be a data-entry mistake, not a real second parcel.
+    portCallCargoUniqueIdx: uniqueIndex(
+      "cargo_plans_port_call_cargo_unique_idx"
+    ).on(t.portCallId, t.cargoId),
+    // CROSS-TENANT INTEGRITY on both references.
+    portCallOrgFk: foreignKey({
+      columns: [t.portCallId, t.organizationId],
+      foreignColumns: [voyagePortCalls.id, voyagePortCalls.organizationId],
+      name: "cargo_plans_port_call_org_fk",
+    }).onDelete("cascade"),
+    cargoOrgFk: foreignKey({
+      columns: [t.cargoId, t.organizationId],
+      foreignColumns: [cargoes.id, cargoes.organizationId],
+      name: "cargo_plans_cargo_org_fk",
     }),
   })
 );

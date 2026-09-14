@@ -1,7 +1,17 @@
 "use server";
 
 import { db } from "@/db/client";
-import { voyagePortCalls, voyages, ports } from "@/db/schema";
+import {
+  voyagePortCalls,
+  voyages,
+  ports,
+  cargoPlans,
+  contractLaytimeTerms,
+} from "@/db/schema";
+import {
+  resolveApplicableTerm,
+  TermAmbiguityException,
+} from "@/lib/commercial/applicability-resolver";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { authorized, recordAudit } from "@/lib/auth/authorized";
 import { ForbiddenError } from "@/lib/auth/session";
@@ -379,6 +389,240 @@ export async function setVoyagePortCallStatus(
       });
 
       return ok({ id: portCallId, status, changed: true });
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// PO11 — COMMERCIAL TERM RESOLUTION
+//
+// Resolution is never automatic. It does not run at port-call creation (the
+// cargo is not known yet), and it does not re-run when the contract, port,
+// function or cargo later change. A stored term therefore always reflects a
+// decision someone made deliberately, which is what keeps a finalized
+// statement reproducible (F20) and stops an edit elsewhere from silently
+// rewriting commercial intent.
+//
+// The seven states the caller must be able to tell apart:
+//   1. not yet resolved          contractLaytimeTermId is null, never resolved
+//   2. insufficient cargo context INSUFFICIENT_CARGO_CONTEXT
+//   3. multiple cargo contexts    MULTIPLE_CARGO_CONTEXTS
+//   4. zero matching terms        ok, with termId null
+//   5. ambiguous matching terms   AMBIGUOUS_TERM
+//   6. successfully resolved      ok, with a termId, audit action "resolve"
+//   7. manually overridden        ok, with a termId, audit action "override"
+//
+// States 1 and 4 both leave the column null, so they are NOT collapsed: a
+// zero match returns ok (the resolver ran and found nothing), while an
+// unresolved call simply never ran it.
+// ---------------------------------------------------------------------------
+
+/** Everything resolution needs about the port call, fetched in one go. */
+async function loadResolutionContext(
+  portCallId: string,
+  organizationId: string
+) {
+  const [row] = await db
+    .select({
+      portId: voyagePortCalls.portId,
+      function: voyagePortCalls.function,
+      contractId: voyages.contractId,
+    })
+    .from(voyagePortCalls)
+    .innerJoin(
+      voyages,
+      and(
+        eq(voyagePortCalls.voyageId, voyages.id),
+        eq(voyages.organizationId, organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(voyagePortCalls.id, portCallId),
+        eq(voyagePortCalls.organizationId, organizationId)
+      )
+    );
+  return row ?? null;
+}
+
+export async function resolveContractLaytimeTerm(
+  portCallId: string
+): Promise<ActionResult<{ id: string; contractLaytimeTermId: string | null }>> {
+  type Out = { id: string; contractLaytimeTermId: string | null };
+
+  return portCallAction<Out>("masterdata.write", async (ctx) => {
+    const pc = await loadResolutionContext(portCallId, ctx.organizationId);
+    if (!pc) {
+      return fail<Out>("NOT_FOUND", "Port call not found.");
+    }
+
+    // Scope: only terms of the voyage's OWN contract are candidates. Without
+    // a contract there is nothing to resolve against, and guessing from the
+    // organization's other contracts would be arbitrary.
+    if (pc.contractId === null) {
+      return fail<Out>(
+        "CONTRACT_REQUIRED",
+        "This voyage has no contract, so a laytime term cannot be resolved. Attach a contract to the voyage first."
+      );
+    }
+
+    // Cargo context comes from the port call's cargo plans.
+    const plans = await db
+      .select({ cargoId: cargoPlans.cargoId })
+      .from(cargoPlans)
+      .where(
+        and(
+          eq(cargoPlans.portCallId, portCallId),
+          eq(cargoPlans.organizationId, ctx.organizationId)
+        )
+      );
+
+    if (plans.length === 0) {
+      return fail<Out>(
+        "INSUFFICIENT_CARGO_CONTEXT",
+        "This port call has no cargo plan yet, so there is no cargo to resolve a term against."
+      );
+    }
+    if (plans.length > 1) {
+      return fail<Out>(
+        "MULTIPLE_CARGO_CONTEXTS",
+        "This port call has more than one cargo plan. A single laytime term cannot be resolved automatically — set it manually instead."
+      );
+    }
+
+    const candidates = await db
+      .select({
+        id: contractLaytimeTerms.id,
+        function: contractLaytimeTerms.function,
+        portId: contractLaytimeTerms.portId,
+        cargoId: contractLaytimeTerms.cargoId,
+      })
+      .from(contractLaytimeTerms)
+      .where(
+        and(
+          eq(contractLaytimeTerms.contractId, pc.contractId),
+          eq(contractLaytimeTerms.organizationId, ctx.organizationId),
+          eq(contractLaytimeTerms.status, "active")
+        )
+      );
+
+    let resolved: { id: string } | null;
+    try {
+      resolved = resolveApplicableTerm(
+        {
+          function: pc.function,
+          portId: pc.portId,
+          cargoId: plans[0].cargoId,
+        },
+        candidates
+      );
+    } catch (e) {
+      if (e instanceof TermAmbiguityException) {
+        // The stored value is deliberately left untouched.
+        return fail<Out>(
+          "AMBIGUOUS_TERM",
+          `${e.candidateCount} laytime terms apply to this port call and none is more specific than the rest. Narrow their scope, or set the term manually.`
+        );
+      }
+      throw e;
+    }
+
+    return withDatabaseErrors<Out>(async () => {
+      const termId = resolved?.id ?? null;
+
+      await db
+        .update(voyagePortCalls)
+        .set({ contractLaytimeTermId: termId, updatedAt: new Date() })
+        .where(
+          and(
+            eq(voyagePortCalls.id, portCallId),
+            eq(voyagePortCalls.organizationId, ctx.organizationId)
+          )
+        );
+
+      await recordAudit(ctx, {
+        entityType: "VoyagePortCall",
+        entityId: portCallId,
+        action: "resolve",
+        after: { contractLaytimeTermId: termId, cargoId: plans[0].cargoId },
+      });
+
+      return ok({ id: portCallId, contractLaytimeTermId: termId });
+    });
+  });
+}
+
+/**
+ * Sets the term by hand, bypassing the resolver entirely.
+ *
+ * The column is the same one resolution writes; the difference lives in the
+ * audit log ("override" rather than "resolve"), so the history shows whether
+ * a term was derived or chosen. Passing null clears the term.
+ *
+ * The term must belong to the voyage's own contract — the same scope rule
+ * resolution follows. An override is a commercial judgement, not a licence
+ * to attach a term from an unrelated fixture.
+ */
+export async function overrideContractLaytimeTerm(
+  portCallId: string,
+  contractLaytimeTermId: string | null
+): Promise<ActionResult<{ id: string; contractLaytimeTermId: string | null }>> {
+  type Out = { id: string; contractLaytimeTermId: string | null };
+
+  return portCallAction<Out>("masterdata.write", async (ctx) => {
+    const pc = await loadResolutionContext(portCallId, ctx.organizationId);
+    if (!pc) {
+      return fail<Out>("NOT_FOUND", "Port call not found.");
+    }
+
+    const termId = (contractLaytimeTermId ?? "").trim() || null;
+
+    if (termId !== null) {
+      if (pc.contractId === null) {
+        return fail<Out>(
+          "CONTRACT_REQUIRED",
+          "This voyage has no contract, so a laytime term cannot be attached. Attach a contract to the voyage first."
+        );
+      }
+
+      const [term] = await db
+        .select({ id: contractLaytimeTerms.id })
+        .from(contractLaytimeTerms)
+        .where(
+          and(
+            eq(contractLaytimeTerms.id, termId),
+            eq(contractLaytimeTerms.contractId, pc.contractId),
+            eq(contractLaytimeTerms.organizationId, ctx.organizationId)
+          )
+        );
+
+      if (!term) {
+        return fail<Out>(
+          "NOT_FOUND",
+          "That laytime term does not belong to this voyage's contract."
+        );
+      }
+    }
+
+    return withDatabaseErrors<Out>(async () => {
+      await db
+        .update(voyagePortCalls)
+        .set({ contractLaytimeTermId: termId, updatedAt: new Date() })
+        .where(
+          and(
+            eq(voyagePortCalls.id, portCallId),
+            eq(voyagePortCalls.organizationId, ctx.organizationId)
+          )
+        );
+
+      await recordAudit(ctx, {
+        entityType: "VoyagePortCall",
+        entityId: portCallId,
+        action: "override",
+        after: { contractLaytimeTermId: termId },
+      });
+
+      return ok({ id: portCallId, contractLaytimeTermId: termId });
     });
   });
 }
