@@ -34,8 +34,8 @@
 - **Phase 2 ✅** — Master Data complete. Schema (8 tables, composite FKs, CHECK constraints), shared foundations (forms, ui, DataTable, TimezoneCombobox), and every admin screen: Ports · Facilities · Vessels · Cargo · Stoppage Reasons · Holiday Calendars · **Event Types** (the final Phase 2 screen — action + 12 tests + UI, browser-verified).
 
 ### Currently next
-- **Phase 3 UI.** The Phase 3 BACKEND is complete (commit `2d783db`): schema for all 5 commercial tables (RuleSet, RuleSetVersion, Contract, LaytimePool, ContractLaytimeTerm) applied and verified in PostgreSQL, action sets for all five entities, and the pure applicability resolver — 130 tests green. What remains in Phase 3 is the admin UI for the commercial layer (rule sets + versions, contracts with their terms and pools). Not started.
-- Deferred within Phase 3: ContractLaytimeTerm term-versioning + finalized-statement trigger (F14) → Phase 7 (roadmap PO7). No term-version structure exists yet by design.
+- **Phase 4 — Voyage + PortCall.** Phase 3 (commercial layer) is COMPLETE: schema, all five entity action sets, the applicability resolver (130 tests), and the full admin UI (rule sets + versions, contracts with terms and pools), all browser-verified through commit `a5d23f1`. Next is the operational spine — the Voyage + VoyagePortCall model, CargoPlan re-parenting, and backfill of any existing voyages. Not started.
+- Still deferred: ContractLaytimeTerm term-versioning + finalized-statement trigger (F14) → Phase 7 (PO7).
 
 ### Verification ladder (never conflate these)
 `implemented` → `typechecked (tsc --noEmit)` → `tested (vitest on PostgreSQL)` → `browser/runtime verified`. Phase 2 reached the top rung. Nothing in Phase 3+ is verified yet.
@@ -53,8 +53,8 @@
 |---|---|---|---|
 | 1 | Platform — Auth/Tenancy/Authorization | ✅ COMPLETE | — |
 | 2 | Master Data + Company Config + admin screens | ✅ COMPLETE | — |
-| 3 | Commercial — Contract, Terms, RuleSets, Pools, resolver | ⬅️ backend done, UI next | — |
-| 4 | Voyage + PortCall restructure + CargoPlan re-parent + backfill | ⏳ FUTURE | — |
+| 3 | Commercial — Contract, Terms, RuleSets, Pools, resolver | ✅ COMPLETE | — |
+| 4 | Voyage + PortCall restructure + CargoPlan re-parent + backfill | ⬅️ NEXT | — |
 | 5 | Operational — Event, Stoppage, ShiftPerformance re-parent | ⏳ FUTURE | — |
 | 6 | Laytime Engine rebuild | ⏳ FUTURE | 🛑 B1–B5, B8 |
 | 7 | Calculation + Statement persistence + StatementScopeResult | ⏳ FUTURE | 🛑 B7 |
@@ -82,7 +82,7 @@
 **Evidence of completion:** every screen built + browser-verified; Event Types has action + 12 tests; full suite 69 green.
 **Frozen:** the 8 engine semantics (`NOR_TENDERED`, `NOR_ACCEPTED`, `BERTHED`, `OPS_COMMENCED`, `OPS_COMPLETED`, `DEPARTED`, `WEATHER_START`, `WEATHER_END`); protected event-type rows (label-only edit, never deactivate/delete, code/semantic immutable); master data with lifecycle uses active/inactive, never hard delete.
 
-## Phase 3 — Commercial layer · ⬅️ BACKEND DONE, UI NEXT · OFFICIAL
+## Phase 3 — Commercial layer · ✅ COMPLETE · OFFICIAL
 **Purpose:** capture the commercial agreement — what laytime is allowed, at what rates, under which reusable rule semantics — independent of any actual voyage.
 **Depends on:** Phase 2 (Port, Cargo for term scope; nothing else). Does NOT need Voyage/PortCall (those are Phase 4, after this).
 **Entities (frozen fields):**
@@ -239,6 +239,7 @@ Cross-checked against handoff, architecture, frozen decisions, prior implementat
 | 2026-09 | PO6: LaytimeRuleSet has NO status/lifecycle field. The generic setStatus template does not apply unless a future explicit decision introduces RuleSet lifecycle semantics. Do not add status by inference | Implementation review (new) | 3 | frozen | RuleSet actions are list/create/update only |
 | 2026-09 | PO7: ContractLaytimeTerm term-versioning STRUCTURE and the finalized-statement trigger (F14) are deferred to Phase 7, where statements exist. Architecture defines the RuleSetVersion structure explicitly but NOT a term-version structure; inventing one now is out of scope. Phase 3 does in-place CRUD; the single-row schema does not preclude a later row-level versioning column | Implementation review (new) | 3/7 | frozen | Phase 3 term actions are list/create/update/setStatus in place |
 | 2026-09 | Phase 3 BACKEND complete (commit 2d783db): 5 commercial tables + 5 entity action sets + pure applicability resolver, 130 tests green on PostgreSQL. Remaining Phase 3 work is the admin UI | This session | 3 | milestone | Next session: build Phase 3 commercial UI |
+| 2026-09 | Phase 3 COMPLETE (commit a5d23f1): full commercial admin UI (rule sets + versions, contracts with terms and pools) browser-verified. Backend + UI done | This session | 3 | milestone | Next: Phase 4 Voyage + PortCall |
 
 ---
 
