@@ -43,6 +43,13 @@
       "when": 1789380668317,
       "tag": "0005_nebulous_red_shift",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789383159574,
+      "tag": "0006_rapid_jazinda",
+      "breakpoints": true
     }
   ]
 }

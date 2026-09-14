@@ -7,12 +7,13 @@ import {
   uniqueIndex,
   unique,
   index,
+  integer,
   foreignKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizations } from "./platform";
-import { vessels } from "./master-data";
-import { contracts } from "./commercial";
+import { vessels, ports, facilities } from "./master-data";
+import { contracts, contractLaytimeTerms, contractFunctionEnum } from "./commercial";
 
 /**
  * VOYAGE — Phase 4
@@ -75,6 +76,91 @@ export const voyages = pgTable(
       columns: [t.contractId, t.organizationId],
       foreignColumns: [contracts.id, contracts.organizationId],
       name: "voyages_contract_org_fk",
+    }),
+  })
+);
+
+
+/**
+ * VOYAGE PORT CALL — a single visit to one port within a voyage.
+ * ---------------------------------------------------------------------------
+ * effectiveTimezone is SNAPSHOTTED at creation (F28): it resolves from
+ * Port.defaultTimezone, falling back to "UTC" only when the port has none.
+ * CompanyConfiguration.defaultTimezone is application/display-only and NEVER
+ * participates here. Snapshotting matters because correcting a port's
+ * timezone later must not silently shift historical calculations.
+ *
+ * sequence (PO10) is the intended visiting order, never a timestamp. Unique
+ * within a voyage at the database level; gaps are allowed.
+ *
+ * status (PO9) is purely administrative — it never encodes NOR, berthing,
+ * commencement or departure. Those are OperationalEvent facts (Phase 5).
+ *
+ * contractLaytimeTermId (PO11) is NOT resolved automatically at creation:
+ * cargo context lives on CargoPlan, which does not exist yet at that point.
+ * It is set only by an explicit resolve or override action.
+ * ---------------------------------------------------------------------------
+ */
+export const portCallStatusEnum = pgEnum("port_call_status", [
+  "ACTIVE",
+  "COMPLETED",
+  "CANCELLED",
+]);
+
+export const voyagePortCalls = pgTable(
+  "voyage_port_calls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    voyageId: uuid("voyage_id").notNull(),
+    portId: uuid("port_id").notNull(),
+    facilityId: uuid("facility_id"),
+    function: contractFunctionEnum("function").notNull(),
+    sequence: integer("sequence").notNull(),
+    status: portCallStatusEnum("status").notNull().default("ACTIVE"),
+    effectiveTimezone: text("effective_timezone").notNull(),
+    contractLaytimeTermId: uuid("contract_laytime_term_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("voyage_port_calls_org_idx").on(t.organizationId),
+    voyageIdx: index("voyage_port_calls_voyage_idx").on(t.voyageId),
+    // PO10: sequence is unique within a voyage, enforced by the database.
+    voyageSequenceUniqueIdx: uniqueIndex(
+      "voyage_port_calls_voyage_sequence_unique_idx"
+    ).on(t.voyageId, t.sequence),
+    // Composite unique target so CargoPlan (and later OperationalEvent,
+    // Stoppage, ShiftPerformance) can hold a tenant-safe composite FK here.
+    orgIdCompositeIdx: unique("voyage_port_calls_id_org_unique").on(
+      t.id,
+      t.organizationId
+    ),
+    // CROSS-TENANT INTEGRITY on every reference.
+    voyageOrgFk: foreignKey({
+      columns: [t.voyageId, t.organizationId],
+      foreignColumns: [voyages.id, voyages.organizationId],
+      name: "voyage_port_calls_voyage_org_fk",
+    }).onDelete("cascade"),
+    portOrgFk: foreignKey({
+      columns: [t.portId, t.organizationId],
+      foreignColumns: [ports.id, ports.organizationId],
+      name: "voyage_port_calls_port_org_fk",
+    }),
+    facilityOrgFk: foreignKey({
+      columns: [t.facilityId, t.organizationId],
+      foreignColumns: [facilities.id, facilities.organizationId],
+      name: "voyage_port_calls_facility_org_fk",
+    }),
+    termOrgFk: foreignKey({
+      columns: [t.contractLaytimeTermId, t.organizationId],
+      foreignColumns: [
+        contractLaytimeTerms.id,
+        contractLaytimeTerms.organizationId,
+      ],
+      name: "voyage_port_calls_term_org_fk",
     }),
   })
 );

@@ -202,6 +202,12 @@ export const facilities = pgTable(
   (t) => ({
     orgIdx: index("facilities_org_idx").on(t.organizationId),
     portIdx: index("facilities_port_idx").on(t.portId),
+    // Composite unique target so VoyagePortCall can hold a tenant-safe
+    // composite FK into this table (Phase 4).
+    orgIdCompositeIdx: unique("facilities_id_org_unique").on(
+      t.id,
+      t.organizationId
+    ),
     nameUniqueIdx: uniqueIndex("facilities_port_name_unique_idx").on(
       t.portId,
       sql`lower(trim(${t.name}))`

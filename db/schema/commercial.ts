@@ -271,6 +271,12 @@ export const contractLaytimeTerms = pgTable(
   (t) => ({
     orgIdx: index("contract_laytime_terms_org_idx").on(t.organizationId),
     contractIdx: index("contract_laytime_terms_contract_idx").on(t.contractId),
+    // Composite unique target so VoyagePortCall can hold a tenant-safe
+    // composite FK into this table (Phase 4).
+    orgIdCompositeIdx: unique("contract_laytime_terms_id_org_unique").on(
+      t.id,
+      t.organizationId
+    ),
     // CROSS-TENANT INTEGRITY on every reference — each target must belong to
     // the SAME organization.
     contractOrgFk: foreignKey({

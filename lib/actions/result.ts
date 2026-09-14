@@ -162,6 +162,26 @@ const CONSTRAINT_MAP: Readonly<
     code: "NOT_FOUND",
     message: "The selected port could not be found.",
   },
+  voyage_port_calls_voyage_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected voyage could not be found.",
+  },
+  voyage_port_calls_port_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected port could not be found.",
+  },
+  voyage_port_calls_facility_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected facility could not be found.",
+  },
+  voyage_port_calls_term_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected laytime term could not be found.",
+  },
+  voyage_port_calls_voyage_sequence_unique_idx: {
+    code: "CONFLICT",
+    message: "This voyage already has a port call at that sequence number.",
+  },
     voyages_vessel_org_fk: {
     code: "NOT_FOUND",
     message: "The selected vessel could not be found.",
