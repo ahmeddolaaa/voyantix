@@ -57,6 +57,13 @@
       "when": 1789384022641,
       "tag": "0007_happy_puppet_master",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789391563476,
+      "tag": "0008_daily_hitman",
+      "breakpoints": true
     }
   ]
 }

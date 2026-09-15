@@ -273,6 +273,12 @@ export const stoppageReasons = pgTable(
   },
   (t) => ({
     orgIdx: index("stoppage_reasons_org_idx").on(t.organizationId),
+    // Composite unique target so Stoppage can hold a tenant-safe composite
+    // FK into this table (Phase 5).
+    orgIdCompositeIdx: unique("stoppage_reasons_id_org_unique").on(
+      t.id,
+      t.organizationId
+    ),
     nameUniqueIdx: uniqueIndex("stoppage_reasons_org_name_unique_idx").on(
       t.organizationId,
       sql`lower(trim(${t.name}))`
@@ -306,6 +312,12 @@ export const operationalEventTypes = pgTable(
   },
   (t) => ({
     orgIdx: index("operational_event_types_org_idx").on(t.organizationId),
+    // Composite unique target so OperationalEvent can hold a tenant-safe
+    // composite FK into this table (Phase 5).
+    orgIdCompositeIdx: unique("operational_event_types_id_org_unique").on(
+      t.id,
+      t.organizationId
+    ),
     codeUniqueIdx: uniqueIndex("operational_event_types_org_code_unique_idx").on(
       t.organizationId,
       sql`lower(trim(${t.code}))`

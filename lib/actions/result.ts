@@ -206,6 +206,56 @@ const CONSTRAINT_MAP: Readonly<
     code: "CONFLICT",
     message: "This port call already has a plan for that cargo.",
   },
+
+  // --- Phase 5 operational layer -------------------------------------------
+  stoppages_port_call_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected port call could not be found.",
+  },
+  stoppages_reason_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected stoppage reason could not be found.",
+  },
+  // The EXCLUDE constraint is the integrity authority under concurrency.
+  // The action layer checks the same rule first for a clearer message, so
+  // reaching this mapping means two writes raced.
+  stoppages_no_overlap: {
+    code: "CONFLICT",
+    message:
+      "This stoppage overlaps another one on the same port call. Close the open stoppage, or adjust the times.",
+  },
+  stoppages_end_after_start_check: {
+    code: "VALIDATION_ERROR",
+    message: "A stoppage must end after it starts.",
+  },
+  operational_events_port_call_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected port call could not be found.",
+  },
+  operational_events_event_type_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected event type could not be found.",
+  },
+  operational_events_superseded_by_unique_idx: {
+    code: "CONFLICT",
+    message: "That event has already been corrected by another event.",
+  },
+  operational_events_no_self_supersede_check: {
+    code: "INVALID_STATE",
+    message: "An event cannot supersede itself.",
+  },
+  shift_performances_port_call_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected port call could not be found.",
+  },
+  shift_performances_facility_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected facility could not be found.",
+  },
+  shift_performances_cargo_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected cargo could not be found.",
+  },
     voyages_vessel_org_fk: {
     code: "NOT_FOUND",
     message: "The selected vessel could not be found.",

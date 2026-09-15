@@ -34,9 +34,10 @@
 - **Phase 2 ✅** — Master Data complete. Schema (8 tables, composite FKs, CHECK constraints), shared foundations (forms, ui, DataTable, TimezoneCombobox), and every admin screen: Ports · Facilities · Vessels · Cargo · Stoppage Reasons · Holiday Calendars · **Event Types** (the final Phase 2 screen — action + 12 tests + UI, browser-verified).
 - **Phase 4 ✅** — Operational spine complete. `voyages` (reference generated from CompanyConfiguration pattern via ReferenceSequence, manual override supported) · `voyage_port_calls` (effectiveTimezone snapshotted per F28; unique sequence per voyage per PO10) · `cargo_plans`. PO11 term resolution implemented in full with all seven states distinguishable. Migrations `0005`–`0007`. 65 tests (17 + 24 + 24); full suite 195 green. Voyages list + voyage detail screens browser-verified end to end.
 - **CompanyConfiguration + ReferenceSequence ✅** — implemented inside `platform.ts` (not a separate file), migrated and live in the database as of `0004_colorful_major_mapleleaf`. Fields as actually implemented: `voyageReferencePattern` (text, NOT NULL, default `"VOY-{YY}{SEQ:4}"`), `defaultTimezone` (text, NOT NULL, default `"UTC"`, application/display only per F28), `defaultExcludedWeekdays` (**jsonb**, not integer[] — intentional deviation from the `laytimeRuleSetVersions` array convention, kept as-is since already migrated), no `defaultHolidayCalendarId` column exists. `referenceSequences`: `organizationId` + `scope` + `nextValue`, unique per (org, scope), transactional counter. This predates/parallels this session's Phase 4 planning and was discovered only via direct repo inspection — the roadmap had not been updated to reflect it.
+- **Phase 5 ✅** — Operational layer complete (backend). `operational_events` (append-only; corrections supersede, business fields immutable) · `stoppages` (EXCLUDE constraint `stoppages_no_overlap` via btree_gist enforces both no-overlap and one-open-per-port-call) · `shift_performances` (F24: no countability authority). Migration `0008`. 44 new tests incl. a concurrency test proving the EXCLUDE is the real authority; full suite 239 green. No UI yet.
 
 ### Currently next
-- **Phase 5 — Operational layer.** Phase 4 (Voyage + PortCall + CargoPlan) is COMPLETE through commit `212cd00`: three tables, all action sets, PO11 term resolution, 65 new tests, and the full admin UI — every layer browser-verified. Next is OperationalEvent · Stoppage · ShiftPerformance, all hanging off `portCallId`. Not started.
+- **Phase 6 — Laytime Engine.** Phase 5 (Operational layer) backend is COMPLETE: OperationalEvent, Stoppage and ShiftPerformance persist against port calls with their integrity rules, 239 tests green. Phase 5 has NO UI yet — that is deliberate, since the operational screens are part of the Phase 8 UX pass. Phase 6 is BLOCKED on withheld rules B1–B5 and B8, which must be supplied before the engine can be built; the engine must refuse to calculate rather than assume any of them.
 - Still deferred: ContractLaytimeTerm term-versioning + finalized-statement trigger (F14) → Phase 7 (PO7).
 ### Verification ladder (never conflate these)
 `implemented` → `typechecked (tsc --noEmit)` → `tested (vitest on PostgreSQL)` → `browser/runtime verified`. Phase 2 reached the top rung. Nothing in Phase 3+ is verified yet.
@@ -56,8 +57,8 @@
 | 2 | Master Data + Company Config + admin screens | ✅ COMPLETE | — |
 | 3 | Commercial — Contract, Terms, RuleSets, Pools, resolver | ✅ COMPLETE | — |
 | 4 | Voyage + PortCall + CargoPlan | ✅ COMPLETE | — |
-| 5 | Operational — Event, Stoppage, ShiftPerformance | ⬅️ NEXT | — |
-| 6 | Laytime Engine rebuild | ⏳ FUTURE | 🛑 B1–B5, B8 |
+| 5 | Operational — Event, Stoppage, ShiftPerformance | ✅ COMPLETE | — |
+| 6 | Laytime Engine rebuild | ⬅️ NEXT | 🛑 B1–B5, B8 |
 | 7 | Calculation + Statement persistence + StatementScopeResult | ⏳ FUTURE | 🛑 B7 |
 | 8 | Professional UX | ⏳ FUTURE | — |
 | 9 | Reporting | ⏳ FUTURE | 🛑 B6, B9 |
@@ -370,3 +371,25 @@ Open risk carried forward: the underlying single-column-per-PortCall
 model still cannot represent genuinely different terms for different
 cargoes on the same call — MULTIPLE_CARGO_CONTEXTS is the deliberate
 Phase 4 guard against silently picking wrong, not a solution.
+
+## PO13 — Stoppage temporal integrity
+- A closed Stoppage must have endTime > startTime.
+- Zero-duration and negative-duration Stoppages are invalid.
+- Open Stoppages remain allowed via endTime IS NULL.
+- Historical half-open interval semantics [start,end) remain unchanged.
+- Adjacent positive-duration intervals remain allowed.
+- Database EXCLUDE enforcement remains authoritative for overlap.
+- btree_gist is required for the PostgreSQL EXCLUDE implementation.
+- Application pre-validation remains for friendly errors.
+- This strict positive-duration rule is a NEW Phase 5 integrity decision.
+  It is not claimed as historical behaviour; historical verification only
+  established that endTime < startTime was rejected. PostgreSQL treats
+  tstzrange(x, x, '[)') as EMPTY, and an empty range overlaps nothing, so
+  a zero-length row would have evaded the EXCLUDE constraint entirely.
+
+**Implementation note (not a separate decision):** the Stoppage overlap
+invariant `stoppages_no_overlap` is deliberately migration-managed rather
+than declared in `db/schema/operational.ts`, because drizzle-orm 0.45.2
+exposes no first-class EXCLUDE builder. drizzle-kit does not see the
+constraint at all, so it neither drops nor recreates it; the schema file
+carries a comment pointing at migration 0008.
