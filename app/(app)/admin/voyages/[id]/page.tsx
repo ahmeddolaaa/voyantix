@@ -2,6 +2,17 @@ import { notFound } from "next/navigation";
 import { getVoyage } from "@/lib/actions/voyages";
 import { listVoyagePortCalls } from "@/lib/actions/voyage-port-calls";
 import { listCargoPlans } from "@/lib/actions/cargo-plans";
+import { listStoppages, type StoppageRow } from "@/lib/actions/stoppages";
+import {
+  listOperationalEvents,
+  type OperationalEventRow,
+} from "@/lib/actions/operational-events";
+import {
+  listShiftPerformances,
+  type ShiftPerformanceRow,
+} from "@/lib/actions/shift-performances";
+import { listStoppageReasons } from "@/lib/actions/stoppage-reasons";
+import { listEventTypes } from "@/lib/actions/event-types";
 import { listContractLaytimeTerms } from "@/lib/actions/contract-laytime-terms";
 import { listPorts } from "@/lib/actions/ports";
 import { listFacilities } from "@/lib/actions/facilities";
@@ -38,18 +49,28 @@ export default async function VoyageDetailPage({
   // Ports, facilities and cargoes load WITH inactive rows so a port call that
   // references a since-deactivated one still shows its real name; the screen
   // offers only active ones as new choices.
-  const [portCalls, ports, facilities, cargoes] = await Promise.all([
-    listVoyagePortCalls(id),
-    listPorts({ includeInactive: true }),
-    listFacilities({ includeInactive: true }),
-    listCargoes({ includeInactive: true }),
-  ]);
+  const [portCalls, ports, facilities, cargoes, reasons, eventTypes] =
+    await Promise.all([
+      listVoyagePortCalls(id),
+      listPorts({ includeInactive: true }),
+      listFacilities({ includeInactive: true }),
+      listCargoes({ includeInactive: true }),
+      listStoppageReasons({ includeInactive: true }),
+      listEventTypes({ includeInactive: true }),
+    ]);
 
   const calls = portCalls.ok ? portCalls.data : [];
 
   // Cargo plans hang off individual port calls, and there is no "all plans
   // for a voyage" action, so compose the per-call one.
   const planLists = await Promise.all(calls.map((c) => listCargoPlans(c.id)));
+  const stoppageLists = await Promise.all(calls.map((c) => listStoppages(c.id)));
+  const eventLists = await Promise.all(
+    calls.map((c) => listOperationalEvents(c.id))
+  );
+  const shiftLists = await Promise.all(
+    calls.map((c) => listShiftPerformances(c.id))
+  );
   const plansByPortCall: Record<string, {
     id: string;
     cargoId: string;
@@ -68,6 +89,17 @@ export default async function VoyageDetailPage({
       : [];
   });
 
+  // The operational lists are passed through as-is: their row types already
+  // match what the port-call sections expect.
+  const stoppagesByPortCall: Record<string, StoppageRow[]> = {};
+  const eventsByPortCall: Record<string, OperationalEventRow[]> = {};
+  const shiftsByPortCall: Record<string, ShiftPerformanceRow[]> = {};
+  calls.forEach((c, i) => {
+    stoppagesByPortCall[c.id] = stoppageLists[i].ok ? stoppageLists[i].data : [];
+    eventsByPortCall[c.id] = eventLists[i].ok ? eventLists[i].data : [];
+    shiftsByPortCall[c.id] = shiftLists[i].ok ? shiftLists[i].data : [];
+  });
+
   // Term options exist only when the voyage carries a contract (PO11 scope).
   const terms = voyage.data.contractId
     ? await listContractLaytimeTerms(voyage.data.contractId, {
@@ -84,6 +116,28 @@ export default async function VoyageDetailPage({
       status={voyage.data.status}
       initialPortCalls={calls}
       initialPlansByPortCall={plansByPortCall}
+      initialStoppagesByPortCall={stoppagesByPortCall}
+      initialEventsByPortCall={eventsByPortCall}
+      initialShiftsByPortCall={shiftsByPortCall}
+      stoppageReasons={
+        reasons.ok
+          ? reasons.data.map((r) => ({
+              id: r.id,
+              name: r.name,
+              status: r.status,
+            }))
+          : []
+      }
+      eventTypes={
+        eventTypes.ok
+          ? eventTypes.data.map((t) => ({
+              id: t.id,
+              label: t.label,
+              systemSemantic: t.systemSemantic,
+              status: t.status,
+            }))
+          : []
+      }
       ports={
         ports.ok
           ? ports.data.map((p) => ({

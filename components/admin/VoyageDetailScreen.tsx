@@ -15,7 +15,13 @@ import {
   updateCargoPlan,
   deleteCargoPlan,
 } from "@/lib/actions/cargo-plans";
+import type { StoppageRow } from "@/lib/actions/stoppages";
+import type { OperationalEventRow } from "@/lib/actions/operational-events";
+import type { ShiftPerformanceRow } from "@/lib/actions/shift-performances";
 import { Field, TextInput, FormError, SubmitButton } from "@/components/forms";
+import { PortCallEvents } from "@/components/admin/PortCallEvents";
+import { PortCallStoppages } from "@/components/admin/PortCallStoppages";
+import { PortCallShifts } from "@/components/admin/PortCallShifts";
 import {
   Card,
   PageTitle,
@@ -93,6 +99,11 @@ export function VoyageDetailScreen({
   status,
   initialPortCalls,
   initialPlansByPortCall,
+  initialStoppagesByPortCall,
+  initialEventsByPortCall,
+  initialShiftsByPortCall,
+  stoppageReasons,
+  eventTypes,
   ports,
   facilities,
   cargoes,
@@ -105,6 +116,16 @@ export function VoyageDetailScreen({
   status: string;
   initialPortCalls: VoyagePortCallRow[];
   initialPlansByPortCall: Record<string, CargoPlanView[]>;
+  initialStoppagesByPortCall: Record<string, StoppageRow[]>;
+  initialEventsByPortCall: Record<string, OperationalEventRow[]>;
+  initialShiftsByPortCall: Record<string, ShiftPerformanceRow[]>;
+  stoppageReasons: { id: string; name: string; status: "active" | "inactive" }[];
+  eventTypes: {
+    id: string;
+    label: string;
+    systemSemantic: string | null;
+    status: "active" | "inactive";
+  }[];
   ports: PortOption[];
   facilities: FacilityOption[];
   cargoes: CargoOption[];
@@ -847,6 +868,25 @@ export function VoyageDetailScreen({
                   </p>
                 )}
               </div>
+
+              <PortCallEvents
+                portCallId={c.id}
+                initialEvents={initialEventsByPortCall[c.id] ?? []}
+                eventTypes={eventTypes}
+              />
+
+              <PortCallStoppages
+                portCallId={c.id}
+                initialStoppages={initialStoppagesByPortCall[c.id] ?? []}
+                reasons={stoppageReasons}
+              />
+
+              <PortCallShifts
+                portCallId={c.id}
+                initialShifts={initialShiftsByPortCall[c.id] ?? []}
+                cargoes={cargoes}
+                facilities={facilitiesForPort(c.portId)}
+              />
             </Card>
           );
         })}
