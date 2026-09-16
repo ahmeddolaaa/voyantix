@@ -37,7 +37,7 @@
 - **Phase 5 ✅** — Operational layer complete (backend). `operational_events` (append-only; corrections supersede, business fields immutable) · `stoppages` (EXCLUDE constraint `stoppages_no_overlap` via btree_gist enforces both no-overlap and one-open-per-port-call) · `shift_performances` (F24: no countability authority). Migration `0008`. UI complete and browser-verified: events (append-only, corrections show the superseded row struck through), stoppages (one-open-per-port-call rejected with a clear message), and shift performance (cargo list scoped to the port call's plans). Full suite 248 green.
 
 ### Currently next
-- **Phase 6 — Laytime Engine. The pre-Phase-6 risk gate is OPEN** (see the risk-gate section at the end of this file): one real contract has been examined, 2–3 are required. Four capabilities are identified but none has proven minimum semantics, and E4 (partial counting) touches the engine's own output contract, so it must be settled before any engine code is written. Phases 1–5 are complete, backend and UI: voyages, port calls, cargo plans, events, stoppages and shift performance are all usable in the browser, 239 tests green. The dense operational dashboard remains Phase 8 work.
+- **Phase 6 — Laytime Engine.** The old mandatory "2–3 charterparties" entry gate is SUPERSEDED by the product-positioning methodology (see the risk-gate section at the end of this file): reference charterparties DISCOVER capabilities; customer values stay customer configuration; the engine reads configuration and never branches on identity. Phase 6 proceeds per-step when the semantics that step needs are sufficiently defined, and pauses only if a step hits a genuinely undefined commercial semantic. E4 (partial/fractional counting) is confirmed as a real capability and touches the engine's own output contract (an interval carries a counting fraction, not a binary flag), so its representation must be settled before the engine's classification step is written. Phases 1–5 are complete, backend and UI, browser-verified, 248 tests green. The dense operational dashboard remains Phase 8 work.
 - Still deferred: ContractLaytimeTerm term-versioning + finalized-statement trigger (F14) → Phase 7 (PO7).
 ### Verification ladder (never conflate these)
 `implemented` → `typechecked (tsc --noEmit)` → `tested (vitest on PostgreSQL)` → `browser/runtime verified`. Phase 2 reached the top rung. Nothing in Phase 3+ is verified yet.
@@ -250,6 +250,7 @@ Cross-checked against handoff, architecture, frozen decisions, prior implementat
 
 | 2026-09-14 | Phase 4 COMPLETE (commit 212cd00): Voyage + VoyagePortCall + CargoPlan, schema through browser-verified UI, incl. PO11 resolution and F28 timezone snapshot. Two operational lessons recorded: drizzle-kit orders cross-table ALTERs wrong (a composite-unique ALTER on an existing table lands AFTER the FK that needs it — reorder before applying), and `drizzle-kit migrate` swallows SQL errors entirely, so applying via `psql -f` is how the real error surfaces | This session | 4 | milestone | Next: Phase 5 Operational layer |
 | 2026-09-16 | Phase 5 UI browser-verified (Bundle B): shift cargo list scoped to the port call's cargo plans; event correction leaves the original visible, struck through, marked "corrected"; a second open stoppage is rejected with a clear message and no partial write. Closes the last Phase 5 verification gap — Phase 5 is complete backend + UI | This session | 5 | milestone | Phase 5 fully closed |
+| 2026-09-16 | Phase 6 risk-gate REFRAMED to the product-positioning model. Reference charterparties are used to DISCOVER and validate generic product capabilities; a customer's contractual values remain customer configuration and are never promoted to global product defaults, hardcoded constants, or customer-specific branches. The old mandatory "analyze 2–3 charterparties before Phase 6" entry gate is SUPERSEDED (the recommendation survives as optional risk mitigation, its historical wording preserved and marked SUPERSEDED). New entry rule: Phase 6 proceeds per-step when the semantics that step needs are sufficiently defined, and pauses only on a genuinely undefined commercial semantic — never on charterparty count. E4 (partial/fractional counting) confirmed as a real capability from a reference calculation and flagged as touching the engine output contract (interval carries a counting fraction, not a flag); representation to be settled before the classification step. No code/schema/migration/UI changed | This session | 6 | frozen | Phase 6 may proceed per-step; reference contracts are evidence, not a gate |
 | 2026-09-16 | Fix (commit b4f9578): PostgreSQL exclusion violations (SQLSTATE 23P01) were filtered out by `isMappableCode` before the constraint name was read, so the `stoppages_no_overlap` CONSTRAINT_MAP entry was unreachable and a real write race surfaced a raw DatabaseError instead of CONFLICT. Added 23P01 as a mappable SQLSTATE; verified against a real 23P01; guarded by stoppages test 15b. Single-request path was already correct via the application pre-check | This session | 5/all | fix | Concurrency fallback now returns CONFLICT |
 | 2026-09-16 | Fix (commit 8e97587): operational timestamps were formatted with locale/timezone-free `toLocaleString`, causing an SSR/client hydration mismatch (UTC container vs viewer's zone). Introduced shared `lib/format.ts` `formatInstant(date, timeZone)` pinning explicit en-GB 24h locale AND an explicit IANA timeZone (required arg); events/stoppages now pass `c.effectiveTimezone` (F18/F28), so times read in the port's local time. Display only; input semantics deferred (see Monitored/deferred). 8 formatter tests | This session | 8/5 | fix | Hydration resolved; times in port-local time |
 ---
@@ -402,9 +403,23 @@ carries a comment pointing at migration 0008.
 
 # PHASE 6 RISK GATE — METHODOLOGY AND STATUS
 
-> The approved architecture mandates validating the composable rule model
-> against 2–3 real charterparties before the engine is built. That gate is
-> OPEN: one contract has been examined, which is not enough to close it.
+> **SUPERSEDED FRAMING (preserved for traceability).** The approved
+> architecture originally *recommended* validating the composable rule model
+> against 2–3 real charterparties before the engine is built, and an earlier
+> version of this section treated that as a MANDATORY Phase 6 entry gate
+> ("OPEN until 2–3 contracts examined"). That mandatory-count interpretation
+> is now **SUPERSEDED** by the product-positioning methodology below.
+>
+> **CURRENT FRAMING.** VOYANTIX is a generic, multi-tenant commercial
+> product. Reference charterparties are used to DISCOVER and validate
+> product capabilities; a customer's contractual values remain customer
+> configuration and are never promoted to global product rules without
+> separate product justification. Analyzing further charterparties stays a
+> RECOMMENDED risk-mitigation activity where semantic variation or risk
+> justifies it — it is NOT a mandatory prerequisite for starting Phase 6.
+> Phase 6 proceeds when the capability and commercial semantics required for
+> the step being implemented are sufficiently defined, and PAUSES only if a
+> step reaches a genuinely undefined commercial semantic (see Gate verdict).
 
 ## Product positioning — the distinction everything else rests on
 
@@ -425,7 +440,7 @@ Every discovered requirement sits in exactly one stage:
 | Stage | Meaning | How it is reached |
 |---|---|---|
 | 1. IDENTIFIED CAPABILITY | A real customer needs it | Observing one genuine need |
-| 2. PROVEN MINIMUM SEMANTICS | The smallest model covering it across 2–3 real contracts | Evidence from multiple contracts |
+| 2. PROVEN MINIMUM SEMANTICS | The smallest generic model that covers the need without hardcoding a customer's value | Sufficient real evidence and reasoning — not a fixed contract count |
 | 3. FROZEN PRODUCT MODEL | Final schema and axes | Stage 2 plus an explicit decision |
 | 4. CUSTOMER CONFIGURATION | The value one customer selected | Data, never code |
 | 5. ENGINE IMPLEMENTATION | Code executing the configuration | Reads data, never branches on identity |
@@ -450,10 +465,15 @@ architecture and is NOT replaced. Whether E2 is an additional composable
 axis alongside it or an extension of it is an open question that further
 contract evidence must settle.
 
-**E4 note:** this one touches the engine's own output contract. The
-pipeline as described classifies each interval; a fractional result is a
-different shape. It must be settled BEFORE the engine is written, not
-during.
+**E4 note:** a real reference calculation now demonstrates the fractional
+shape concretely — an interval whose contribution is only a FRACTION of its
+elapsed duration, not the full amount and not zero. This touches the
+engine's own output contract: the pipeline as described classifies each
+interval as counting/not, but a fractional result means each interval must
+carry a counting FRACTION (0..1), not a binary flag. The representation must
+be settled BEFORE the engine's classification step is written, not during.
+The capability is confirmed; the exact schema representation and any values
+remain customer configuration and are NOT frozen from one reference example.
 
 ## B-rule status
 
@@ -464,8 +484,14 @@ validation.** They do not leave the withheld list — what was learned is the
 configure their own values, and the engine refuses to calculate without
 them.
 
-**B8 remains fully blocked.** No contract examined has produced a single
-case of term ambiguity, so neither the capability nor the value is known.
+**B8 — resolver STRUCTURE is frozen (F15); only the tie-break POLICY is
+withheld.** The applicability resolver's behaviour is authoritative and
+unchanged: exact function match; nullable port/cargo act as wildcard;
+specificity based only on port/cargo; strict specificity only; exactly one
+match → select; exactly one strict dominator → select; otherwise
+TermAmbiguityException; zero matches → null. What remains withheld is only
+the tie-break policy for a genuine ambiguity — resolved when the engine step
+that needs it is implemented. Do not invent additional tie-break semantics.
 
 ## Default policy
 
@@ -473,23 +499,38 @@ Where no justified universal default exists, the system requires explicit
 customer configuration rather than silently assuming a value. The engine
 refuses to guess a missing commercial semantic.
 
-## What the gate has NOT tested
+## Capabilities identified but not yet implemented
 
-The evidence so far covers one contract, one port, loading only. These
-parts of the model passed the gate WITHOUT being exercised at all:
+The approved architecture already IDENTIFIES these capabilities — they are
+not missing from the product model, and they are NOT "waiting for another
+charterparty". Each is an implementation/semantic gap: the capability
+exists in the model, its exact engine semantics may not yet be fully
+defined, and the engine code is not yet written.
 
-- discharge operations
-- multi-port voyages
-- pooling / reversible laytime
-- term applicability ambiguity (B8)
+- discharge operations (LOAD/DISCHARGE PortCall already modelled)
+- multi-port voyages (multiple PortCalls per Voyage already modelled)
+- pooling / reversible laytime (LaytimePool / reversible structure already modelled)
+- term applicability ambiguity (B8 — resolver STRUCTURE frozen; only the tie-break policy is withheld)
 
-Any contract touching these must pass the same gate before the affected
-part of the engine is built.
+When the engine step for any of these is implemented and it reaches a
+genuinely undefined commercial semantic, THAT step pauses until the
+semantic is resolved (per the Gate verdict) — the pause is triggered by an
+undefined semantic, never by the mere absence of another charterparty.
 
-## Gate verdict on the evidence seen
+## Gate verdict
 
-**PASS WITH ISOLATED EXTENSION** — the entity separation (Contract / Term /
+**PASS WITH ISOLATED EXTENSION.** The entity separation (Contract / Term /
 RuleSet / Version), the applicability resolver, and the port-call anchoring
-all survived a real non-standard contract without structural change. Every
-gap found was additive. The gate nonetheless stays OPEN until 2–3 contracts
-have been examined.
+all survived a real non-standard reference contract without structural
+change. Every gap found was additive, not structural.
+
+**Entry rule (replaces the old 2–3-contract condition).** Phase 6 may
+proceed when the specific capability and commercial semantics required for
+the engine STEP being implemented are sufficiently defined. Phase 6 MUST
+pause when a step reaches: an undefined commercial semantic, an unsupported
+contractual behaviour, a genuine product-capability gap, or an ambiguity
+that would force the engine to guess. Phase 6 must NOT pause merely because
+only one customer has provided evidence, or because another charterparty
+has not been analyzed, or because a hypothetical customer might someday need
+something else — and must NOT proceed by hardcoding a customer's behaviour
+just because it is the only known example.
