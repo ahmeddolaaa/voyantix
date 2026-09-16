@@ -883,8 +883,13 @@ export function VoyageDetailScreen({
 
               <PortCallShifts
                 portCallId={c.id}
+                portCallFunction={c.function}
                 initialShifts={initialShiftsByPortCall[c.id] ?? []}
-                cargoes={cargoes}
+                cargoes={callPlans.map((p) => ({
+                  id: p.cargoId,
+                  name: cargoName(p.cargoId),
+                  status: "active" as const,
+                }))}
                 facilities={facilitiesForPort(c.portId)}
               />
             </Card>

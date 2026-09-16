@@ -27,7 +27,6 @@ type FormState = {
   facilityId: string;
   shiftDate: string;
   crane: string;
-  operationType: string;
   quantityMt: string;
 };
 
@@ -36,7 +35,6 @@ const emptyForm: FormState = {
   facilityId: "",
   shiftDate: "",
   crane: "",
-  operationType: "",
   quantityMt: "",
 };
 
@@ -51,12 +49,16 @@ const selectClass =
 
 export function PortCallShifts({
   portCallId,
+  portCallFunction,
   initialShifts,
   cargoes,
   facilities,
 }: {
   portCallId: string;
+  /** LOAD or DISCHARGE, taken from the port call. */
+  portCallFunction: string;
   initialShifts: ShiftPerformanceRow[];
+  /** Only the cargoes actually planned for THIS port call. */
   cargoes: CargoOption[];
   facilities: FacilityOption[];
 }) {
@@ -84,7 +86,6 @@ export function PortCallShifts({
       facilityId: r.facilityId ?? "",
       shiftDate: r.shiftDate,
       crane: r.crane ?? "",
-      operationType: r.operationType ?? "",
       quantityMt: r.quantityMt,
     });
     setError(null);
@@ -105,7 +106,10 @@ export function PortCallShifts({
         facilityId: form.facilityId || null,
         shiftDate: form.shiftDate,
         crane: form.crane || null,
-        operationType: form.operationType || null,
+        // The operation is the port call's own function — a load call only
+        // ever has loading shifts, so asking again would just be a second
+        // place for the same fact to go wrong.
+        operationType: portCallFunction,
         quantityMt: form.quantityMt,
       };
 
@@ -172,7 +176,9 @@ export function PortCallShifts({
 
       {rows.length === 0 && !formOpen && (
         <p className="text-[12.5px]" style={{ color: "var(--steel)" }}>
-          No shifts recorded yet.
+          {cargoes.length === 0
+            ? "Add a cargo plan first — a shift records how much of a planned cargo moved."
+            : "No shifts recorded yet."}
         </p>
       )}
 
@@ -190,7 +196,6 @@ export function PortCallShifts({
               {" "}
               · {r.quantityMt} MT
               {r.crane ? ` · ${r.crane}` : ""}
-              {r.operationType ? ` · ${r.operationType}` : ""}
             </span>
           </span>
           <span className="inline-flex gap-2">
@@ -243,14 +248,11 @@ export function PortCallShifts({
                   style={selectStyle}
                 >
                   <option value="">Select a cargo</option>
-                  {cargoes
-                    .filter((c) => c.status === "active" || c.id === form.cargoId)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                        {c.status === "inactive" ? " — inactive" : ""}
-                      </option>
-                    ))}
+                  {cargoes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
                 </select>
               )}
             </Field>
@@ -279,20 +281,6 @@ export function PortCallShifts({
                     setForm((f) => ({ ...f, crane: e.target.value }))
                   }
                   placeholder="e.g. Crane 2"
-                />
-              )}
-            </Field>
-
-            <Field label="Operation">
-              {(a) => (
-                <TextInput
-                  {...a}
-                  value={form.operationType}
-                  disabled={pending}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, operationType: e.target.value }))
-                  }
-                  placeholder="e.g. Loading"
                 />
               )}
             </Field>
