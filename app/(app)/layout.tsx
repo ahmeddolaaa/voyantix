@@ -30,6 +30,7 @@ export default async function AppLayout({
 
         <nav className="flex gap-1 ml-2">
           <NavLink href="/portfolio">Portfolio</NavLink>
+          <NavLink href="/admin/voyages">Voyages</NavLink>
           <NavLink href="/reports">Reports</NavLink>
           {ctx.role === "admin" && <NavLink href="/admin">Administration</NavLink>}
         </nav>
