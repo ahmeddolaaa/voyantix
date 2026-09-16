@@ -398,3 +398,68 @@ The engine stops at the balance. Rates and settlement are Phase 7.
 *This document is a design reference. It freezes nothing. Every capability
 here becomes real only through an explicit product decision; every value
 remains customer configuration.*
+
+---
+
+## RESOLVED — Interval output contract (2026-09-16)
+
+The first capability gap is closed. This is the frozen shape of every
+interval the pure engine emits, and the basis of the Phase 7 `LaytimeInterval`
+table (F19 — the single source of calculation truth; the time-sheet is a
+query over it). It freezes the *shape*, not any value.
+
+### Fields
+
+**Identity & time**
+
+| Field | Type | Source | Purpose |
+|---|---|---|---|
+| `portCallId` | ref | scope | the interval belongs to a port call |
+| `sequence` | int | ordered walk | position within the port call; the engine walks in order, which `once-on-demurrage` depends on |
+| `start`, `end` | instant (UTC) | partition | absolute bounds; displayed in the port's local time |
+| `elapsedSeconds` | derived (`end − start`) | partition | raw duration; needed for the "all time saved" despatch basis |
+
+**Classification (the judgement) — three independent axes, not merged**
+
+| Field | Type | Source | Purpose |
+|---|---|---|---|
+| `classification` | enum | classify | working / turn-time / weekend / holiday / weather-stoppage / operational-stoppage / on-demurrage / … |
+| `exclusionBasis` | enum? | classify | SHINC / SHEX / WWD / custom / none — the rule basis in force |
+| `usagePolicy` | enum? | classify | UU / EIU / WWD-conditional / n-a |
+| `wasUsed` | bool | events / occupancy | whether real work occurred (relevant only when usagePolicy = UU); never from ShiftPerformance (F24) |
+| `countingFraction` | decimal [0..1] | classify | E4 — the interval's share of counted time |
+| `countedSeconds` | stored integer | `round(elapsedSeconds × countingFraction)` | actually-counted time |
+
+**Traceability (the "why")**
+
+| Field | Type | Source | Purpose |
+|---|---|---|---|
+| `reasonRef` | ref? | classify | the specific rule / stoppage-reason id that produced this classification — a reference, never free text |
+| `stoppageLinks` | ref[] | partition | stoppages overlapping this interval; persisted as `LaytimeIntervalStoppageLink` (Phase 7) |
+| `onDemurrage` | bool | state walk | whether this interval falls after the allowance was crossed (Layer 3.1) |
+
+### The three design decisions (frozen)
+
+1. **Store both `countingFraction` and `countedSeconds`.** The fraction is
+   kept for traceability and display; `countedSeconds` is stored as an
+   integer, not re-derived, so rounding does not accumulate across hundreds
+   of intervals. Accumulation sums `countedSeconds` directly.
+
+2. **`classification`, `exclusionBasis`, and `usagePolicy` are three
+   separate fields, not one composite enum.** They are genuinely
+   independent — a weekend interval can be SHEX+EIU or SHEX+UU — and merging
+   them would cause a combinatorial explosion of enum values.
+
+3. **`stoppageLinks` is a list of references on the interval**, which the
+   Phase 7 persistence layer translates into the `LaytimeIntervalStoppageLink`
+   join table (an interval may overlap several stoppages and vice-versa).
+
+### What this unblocks
+
+With the output shape fixed, E4 is resolved structurally: a fractional
+result is a first-class value (`countingFraction`), not a special case. The
+next gaps (per-rule usage policy, once-on-demurrage, interruption vs
+exception, NOR model) all now have a defined place to write their result
+into. No enum value, precision, or field name below the shape level is
+frozen here — those are ordinary implementation decisions taken when the
+engine step is built.
