@@ -86,6 +86,7 @@ export function fail<T = never>(
 const PG_UNIQUE_VIOLATION = "23505";
 const PG_FOREIGN_KEY_VIOLATION = "23503";
 const PG_CHECK_VIOLATION = "23514";
+const PG_EXCLUSION_VIOLATION = "23P01";
 
 /**
  * KNOWN CONSTRAINT MAP — a whitelist, deliberately.
@@ -319,7 +320,8 @@ export function mapDatabaseError<T = never>(e: unknown): ActionResult<T> | null 
   const isMappableCode =
     pg.code === PG_UNIQUE_VIOLATION ||
     pg.code === PG_FOREIGN_KEY_VIOLATION ||
-    pg.code === PG_CHECK_VIOLATION;
+    pg.code === PG_CHECK_VIOLATION ||
+    pg.code === PG_EXCLUSION_VIOLATION;
 
   if (!isMappableCode) return null;
   if (!pg.constraint) return null;

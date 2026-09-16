@@ -441,6 +441,46 @@ describe("the EXCLUDE constraint is the real authority", () => {
       })
     ).rejects.toThrow();
   });
+
+  it("15b. the EXCLUDE violation surfaces as CONFLICT, not a raw throw", async () => {
+    currentToken = adminToken;
+    const pc = await freshPortCall();
+    const [u] = await db.select({ id: users.id }).from(users).limit(1);
+
+    // A raw open stoppage, inserted straight to the table so the action's
+    // pre-check never sees it — this is the concurrency case where the
+    // application overlap check has already been passed and the database
+    // EXCLUDE constraint (SQLSTATE 23P01) is the only thing left to reject
+    // the second open stoppage.
+    await db.insert(stoppages).values({
+      organizationId: orgA,
+      portCallId: pc,
+      reasonId: reasonRain,
+      startTime: new Date(T("10:00")),
+      endTime: null,
+      recordedByUserId: u.id,
+    });
+
+    // The action must translate 23P01 into a clean business result, never
+    // let it propagate as an unexpected system failure.
+    const result = await createStoppage(pc, {
+      reasonId: reasonRain,
+      startTime: T("11:00"),
+      endTime: null,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("CONFLICT");
+    }
+
+    // The original open stoppage is untouched and no second row was written.
+    const rows = await db
+      .select({ id: stoppages.id })
+      .from(stoppages)
+      .where(eq(stoppages.portCallId, pc));
+    expect(rows.length).toBe(1);
+  });
 });
 
 describe("update", () => {
