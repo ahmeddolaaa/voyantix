@@ -8,6 +8,7 @@ import {
 } from "@/lib/actions/operational-events";
 import { Field, TextInput, FormError, SubmitButton } from "@/components/forms";
 import { SecondaryButton, StatusBadge } from "@/components/ui";
+import { formatInstant } from "@/lib/format";
 
 /**
  * Operational events for one port call.
@@ -49,24 +50,16 @@ function toInputValue(d: Date): string {
   )}:${pad(d.getMinutes())}`;
 }
 
-function formatInstant(d: Date): string {
-  return d.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export function PortCallEvents({
   portCallId,
   initialEvents,
   eventTypes,
+  timeZone,
 }: {
   portCallId: string;
   initialEvents: OperationalEventRow[];
   eventTypes: EventTypeOption[];
+  timeZone: string;
 }) {
   const [rows, setRows] = useState(initialEvents);
   const [formOpen, setFormOpen] = useState(false);
@@ -219,7 +212,7 @@ export function PortCallEvents({
               )}
               <span style={{ color: "var(--steel)" }}>
                 {" "}
-                · {formatInstant(r.occurredAt)}
+                · {formatInstant(r.occurredAt, timeZone)}
               </span>
               {superseded && (
                 <span className="ml-2" style={{ color: "var(--steel)" }}>
@@ -245,7 +238,7 @@ export function PortCallEvents({
           {correcting && (
             <p className="text-[12px] mb-2" style={{ color: "var(--ink-soft)" }}>
               Correcting {typeLabel(correcting.eventTypeId)} at{" "}
-              {formatInstant(correcting.occurredAt)}. The original stays on
+              {formatInstant(correcting.occurredAt, timeZone)}. The original stays on
               record.
             </p>
           )}

@@ -873,12 +873,14 @@ export function VoyageDetailScreen({
                 portCallId={c.id}
                 initialEvents={initialEventsByPortCall[c.id] ?? []}
                 eventTypes={eventTypes}
+                timeZone={c.effectiveTimezone}
               />
 
               <PortCallStoppages
                 portCallId={c.id}
                 initialStoppages={initialStoppagesByPortCall[c.id] ?? []}
                 reasons={stoppageReasons}
+                timeZone={c.effectiveTimezone}
               />
 
               <PortCallShifts

@@ -9,6 +9,7 @@ import {
 } from "@/lib/actions/stoppages";
 import { Field, TextInput, FormError, SubmitButton } from "@/components/forms";
 import { SecondaryButton, DangerButton, StatusBadge } from "@/components/ui";
+import { formatInstant } from "@/lib/format";
 
 /**
  * Stoppages for one port call.
@@ -58,24 +59,16 @@ function toInputValue(d: Date): string {
   )}:${pad(d.getMinutes())}`;
 }
 
-function formatInstant(d: Date): string {
-  return d.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export function PortCallStoppages({
   portCallId,
   initialStoppages,
   reasons,
+  timeZone,
 }: {
   portCallId: string;
   initialStoppages: StoppageRow[];
   reasons: ReasonOption[];
+  timeZone: string;
 }) {
   const [rows, setRows] = useState(initialStoppages);
   const [formOpen, setFormOpen] = useState(false);
@@ -207,8 +200,8 @@ export function PortCallStoppages({
             {reasonName(r.reasonId)}
             <span style={{ color: "var(--steel)" }}>
               {" "}
-              · {formatInstant(r.startTime)} →{" "}
-              {r.endTime ? formatInstant(r.endTime) : "—"}
+              · {formatInstant(r.startTime, timeZone)} →{" "}
+              {r.endTime ? formatInstant(r.endTime, timeZone) : "—"}
               {r.notes ? ` · ${r.notes}` : ""}
             </span>
             {r.endTime === null && (
