@@ -37,7 +37,7 @@
 - **Phase 5 ✅** — Operational layer complete (backend). `operational_events` (append-only; corrections supersede, business fields immutable) · `stoppages` (EXCLUDE constraint `stoppages_no_overlap` via btree_gist enforces both no-overlap and one-open-per-port-call) · `shift_performances` (F24: no countability authority). Migration `0008`. 44 new tests incl. a concurrency test proving the EXCLUDE is the real authority; full suite 239 green. No UI yet.
 
 ### Currently next
-- **Phase 6 — Laytime Engine.** Phase 5 (Operational layer) backend is COMPLETE: OperationalEvent, Stoppage and ShiftPerformance persist against port calls with their integrity rules, 239 tests green. Phase 5 has NO UI yet — that is deliberate, since the operational screens are part of the Phase 8 UX pass. Phase 6 is BLOCKED on withheld rules B1–B5 and B8, which must be supplied before the engine can be built; the engine must refuse to calculate rather than assume any of them.
+- **Phase 6 — Laytime Engine. The pre-Phase-6 risk gate is OPEN** (see the risk-gate section at the end of this file): one real contract has been examined, 2–3 are required. Four capabilities are identified but none has proven minimum semantics, and E4 (partial counting) touches the engine's own output contract, so it must be settled before any engine code is written. Phases 1–5 are complete, backend and UI: voyages, port calls, cargo plans, events, stoppages and shift performance are all usable in the browser, 239 tests green. The dense operational dashboard remains Phase 8 work.
 - Still deferred: ContractLaytimeTerm term-versioning + finalized-statement trigger (F14) → Phase 7 (PO7).
 ### Verification ladder (never conflate these)
 `implemented` → `typechecked (tsc --noEmit)` → `tested (vitest on PostgreSQL)` → `browser/runtime verified`. Phase 2 reached the top rung. Nothing in Phase 3+ is verified yet.
@@ -393,3 +393,99 @@ than declared in `db/schema/operational.ts`, because drizzle-orm 0.45.2
 exposes no first-class EXCLUDE builder. drizzle-kit does not see the
 constraint at all, so it neither drops nor recreates it; the schema file
 carries a comment pointing at migration 0008.
+
+---
+
+# PHASE 6 RISK GATE — METHODOLOGY AND STATUS
+
+> The approved architecture mandates validating the composable rule model
+> against 2–3 real charterparties before the engine is built. That gate is
+> OPEN: one contract has been examined, which is not enough to close it.
+
+## Product positioning — the distinction everything else rests on
+
+**VOYANTIX PRODUCT CAPABILITY ≠ CUSTOMER CONTRACT CONFIGURATION ≠ ENGINE IMPLEMENTATION**
+
+EZDK is a reference customer and a source of real domain evidence. It is
+not the definition of the product. A rule observed in one customer's
+charterparty proves the product needs a *capability*; it never makes that
+customer's *value* a product constant or a default.
+
+The engine consumes configuration. It must never branch on customer
+identity — no `if organization == X`, no `switch(contractLabel)`.
+
+## Five-stage classification
+
+Every discovered requirement sits in exactly one stage:
+
+| Stage | Meaning | How it is reached |
+|---|---|---|
+| 1. IDENTIFIED CAPABILITY | A real customer needs it | Observing one genuine need |
+| 2. PROVEN MINIMUM SEMANTICS | The smallest model covering it across 2–3 real contracts | Evidence from multiple contracts |
+| 3. FROZEN PRODUCT MODEL | Final schema and axes | Stage 2 plus an explicit decision |
+| 4. CUSTOMER CONFIGURATION | The value one customer selected | Data, never code |
+| 5. ENGINE IMPLEMENTATION | Code executing the configuration | Reads data, never branches on identity |
+
+Observing a need at one customer reaches stage 1 only. Stages 2 and 3 are
+never reached automatically.
+
+## Capabilities identified so far — all at stage 1
+
+| | Capability |
+|---|---|
+| E1 | Tiered loading rate driven by an operational variable, with floor and ceiling |
+| E2 | Recurring intra-week exclusion window with time boundaries |
+| E3 | Holiday exclusion extended before and after the holiday itself |
+| E4 | Partial-counting period — an interval counted at a fraction rather than in full |
+
+None has proven minimum semantics: the evidence comes from a single
+contract. No schema is proposed or frozen for any of them.
+
+**E2 note:** `LaytimeRuleSetVersion.excludedWeekdays[]` is approved
+architecture and is NOT replaced. Whether E2 is an additional composable
+axis alongside it or an extension of it is an open question that further
+contract evidence must settle.
+
+**E4 note:** this one touches the engine's own output contract. The
+pipeline as described classifies each interval; a fractional result is a
+different shape. It must be settled BEFORE the engine is written, not
+during.
+
+## B-rule status
+
+For B1–B5 the correct statement is: **product capability identified; final
+semantics and supported values remain subject to real charterparty
+validation.** They do not leave the withheld list — what was learned is the
+*shape of the axis*, not a universal value. Any customer still has to
+configure their own values, and the engine refuses to calculate without
+them.
+
+**B8 remains fully blocked.** No contract examined has produced a single
+case of term ambiguity, so neither the capability nor the value is known.
+
+## Default policy
+
+Where no justified universal default exists, the system requires explicit
+customer configuration rather than silently assuming a value. The engine
+refuses to guess a missing commercial semantic.
+
+## What the gate has NOT tested
+
+The evidence so far covers one contract, one port, loading only. These
+parts of the model passed the gate WITHOUT being exercised at all:
+
+- discharge operations
+- multi-port voyages
+- pooling / reversible laytime
+- term applicability ambiguity (B8)
+
+Any contract touching these must pass the same gate before the affected
+part of the engine is built.
+
+## Gate verdict on the evidence seen
+
+**PASS WITH ISOLATED EXTENSION** — the entity separation (Contract / Term /
+RuleSet / Version), the applicability resolver, and the port-call anchoring
+all survived a real non-standard contract without structural change. Every
+gap found was additive. The gate nonetheless stays OPEN until 2–3 contracts
+have been examined.
