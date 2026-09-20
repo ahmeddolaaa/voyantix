@@ -217,6 +217,14 @@ const CONSTRAINT_MAP: Readonly<
     code: "NOT_FOUND",
     message: "The selected stoppage reason could not be found.",
   },
+  contract_stoppage_rules_term_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected laytime term could not be found.",
+  },
+  contract_stoppage_rules_reason_org_fk: {
+    code: "NOT_FOUND",
+    message: "The selected stoppage reason could not be found.",
+  },
   // The EXCLUDE constraint is the integrity authority under concurrency.
   // The action layer checks the same rule first for a clearer message, so
   // reaching this mapping means two writes raced.

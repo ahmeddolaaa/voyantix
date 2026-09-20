@@ -64,6 +64,13 @@
       "when": 1789391563476,
       "tag": "0008_daily_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789904103573,
+      "tag": "0009_dusty_spyke",
+      "breakpoints": true
     }
   ]
 }

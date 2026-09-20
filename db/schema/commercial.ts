@@ -16,7 +16,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizations } from "./platform";
-import { holidayCalendars, entityStatusEnum, ports, cargoes } from "./master-data";
+import {
+  holidayCalendars,
+  entityStatusEnum,
+  ports,
+  cargoes,
+  stoppageReasons,
+} from "./master-data";
 
 /**
  * COMMERCIAL LAYER — Phase 3
@@ -306,6 +312,55 @@ export const contractLaytimeTerms = pgTable(
       columns: [t.cargoId, t.organizationId],
       foreignColumns: [cargoes.id, cargoes.organizationId],
       name: "contract_laytime_terms_cargo_org_fk",
+    }),
+  })
+);
+
+
+// STOPPAGE COUNTABILITY — the three modes a ContractStoppageRule may assign to
+// a stoppage reason (F11/Q10). AlwaysExcluded and NeverExcluded are defined;
+// the balance effect of CountsAgainstOwner is deliberately left to the engine
+// to refuse until real charterparty evidence establishes it.
+export const stoppageCountabilityEnum = pgEnum("stoppage_countability", [
+  "AlwaysExcluded",
+  "NeverExcluded",
+  "CountsAgainstOwner",
+]);
+
+// CONTRACT STOPPAGE RULE — how a specific stoppage reason is treated for a
+// given term (F11: countability lives with the term, never on the reason).
+// One rule per (term, reason). The engine reads these at calculation time and
+// REFUSES to calculate a stopped interval whose reason has no rule.
+export const contractStoppageRules = pgTable(
+  "contract_stoppage_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    termId: uuid("term_id").notNull(),
+    stoppageReasonId: uuid("stoppage_reason_id").notNull(),
+    countability: stoppageCountabilityEnum("countability").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("contract_stoppage_rules_org_idx").on(t.organizationId),
+    termIdx: index("contract_stoppage_rules_term_idx").on(t.termId),
+    // One rule per reason per term.
+    termReasonUniqueIdx: uniqueIndex(
+      "contract_stoppage_rules_term_reason_unique_idx"
+    ).on(t.termId, t.stoppageReasonId),
+    // CROSS-TENANT INTEGRITY: term and reason must belong to the SAME org.
+    termOrgFk: foreignKey({
+      columns: [t.termId, t.organizationId],
+      foreignColumns: [contractLaytimeTerms.id, contractLaytimeTerms.organizationId],
+      name: "contract_stoppage_rules_term_org_fk",
+    }).onDelete("cascade"),
+    reasonOrgFk: foreignKey({
+      columns: [t.stoppageReasonId, t.organizationId],
+      foreignColumns: [stoppageReasons.id, stoppageReasons.organizationId],
+      name: "contract_stoppage_rules_reason_org_fk",
     }),
   })
 );
