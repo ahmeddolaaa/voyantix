@@ -5,6 +5,7 @@ import {
   laytimeCalculations,
   laytimeIntervals,
   laytimeIntervalStoppageLinks,
+  contractLaytimeTerms,
 } from "@/db/schema";
 import { and, asc, eq } from "drizzle-orm";
 import { authorized, recordAudit } from "@/lib/auth/authorized";
@@ -14,6 +15,7 @@ import { loadPortCallCalcData, type RawStoppage } from "./_calc-loader";
 import { computePortCall, type PortCallCalcData } from "@/lib/laytime/service/compute";
 import { CalculationRefused } from "@/lib/laytime/refuse";
 import { ENGINE_VERSION } from "@/lib/laytime/version";
+import { settleBalance, type Settlement } from "@/lib/laytime/settlement";
 
 /**
  * LAYTIME CALCULATION PERSISTENCE — Phase 7.
@@ -362,6 +364,100 @@ export async function getPortCallCalculation(
   } catch (e) {
     if (e instanceof ForbiddenError) {
       return fail<PersistedCalculation | null>(
+        "FORBIDDEN",
+        "You do not have permission to perform this action."
+      );
+    }
+    throw e;
+  }
+}
+
+// --- settlement: turn the persisted balance into an amount ------------------
+
+export type SettlementView =
+  | { status: "settled"; settlement: Settlement }
+  | { status: "no_calculation" }
+  | { status: "calculation_refused"; code: string; reason: string }
+  | { status: "settlement_refused"; code: string; reason: string };
+
+/**
+ * Settles a port call's persisted calculation into a money amount. Read-only
+ * and reproducible: the amount is a pure function of the persisted balance and
+ * the term's rates. A refused calculation cannot be settled; a configured
+ * despatch is refused because its basis vocabulary is withheld (see
+ * settlement.ts). `statement.read` — settling reads, it does not recalculate.
+ */
+export async function settlePortCall(
+  portCallId: string
+): Promise<ActionResult<SettlementView>> {
+  try {
+    return await authorized<ActionResult<SettlementView>>(
+      "statement.read",
+      async (ctx) => {
+        const [calc] = await db
+          .select({
+            status: laytimeCalculations.status,
+            outcome: laytimeCalculations.outcome,
+            balanceSeconds: laytimeCalculations.balanceSeconds,
+            refusalCode: laytimeCalculations.refusalCode,
+            refusalReason: laytimeCalculations.refusalReason,
+            termId: laytimeCalculations.termId,
+          })
+          .from(laytimeCalculations)
+          .where(
+            and(
+              eq(laytimeCalculations.portCallId, portCallId),
+              eq(laytimeCalculations.organizationId, ctx.organizationId)
+            )
+          );
+        if (!calc) return ok<SettlementView>({ status: "no_calculation" });
+        if (calc.status === "refused") {
+          return ok<SettlementView>({
+            status: "calculation_refused",
+            code: calc.refusalCode ?? "UNKNOWN",
+            reason: calc.refusalReason ?? "The calculation was refused.",
+          });
+        }
+
+        const [term] = await db
+          .select({
+            demurrageRate: contractLaytimeTerms.demurrageRate,
+            despatchRate: contractLaytimeTerms.despatchRate,
+            despatchBasis: contractLaytimeTerms.despatchBasis,
+          })
+          .from(contractLaytimeTerms)
+          .where(
+            and(
+              eq(contractLaytimeTerms.id, calc.termId),
+              eq(contractLaytimeTerms.organizationId, ctx.organizationId)
+            )
+          );
+        if (!term) return fail<SettlementView>("NOT_FOUND", "Laytime term not found.");
+
+        try {
+          const settlement = settleBalance({
+            outcome: calc.outcome!,
+            balanceSeconds: Number(calc.balanceSeconds),
+            demurrageRate: Number(term.demurrageRate),
+            despatchRate: term.despatchRate === null ? null : Number(term.despatchRate),
+            despatchBasis: term.despatchBasis,
+          });
+          return ok<SettlementView>({ status: "settled", settlement });
+        } catch (e) {
+          if (e instanceof CalculationRefused) {
+            return ok<SettlementView>({
+              status: "settlement_refused",
+              code: e.code,
+              reason: e.message,
+            });
+          }
+          throw e;
+        }
+      }
+    );
+  } catch (e) {
+    if (e instanceof ForbiddenError) {
+      return fail<SettlementView>(
         "FORBIDDEN",
         "You do not have permission to perform this action."
       );

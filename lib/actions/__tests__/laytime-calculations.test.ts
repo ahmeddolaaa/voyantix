@@ -43,6 +43,7 @@ import { createSession } from "@/lib/auth/session";
 import {
   recalculatePortCall,
   getPortCallCalculation,
+  settlePortCall,
 } from "../laytime-calculations";
 
 const stamp = Date.now();
@@ -300,5 +301,111 @@ describe("recalculatePortCall — authorization and tenancy", () => {
     const read = await getPortCallCalculation(pc);
     expect(read.ok).toBe(true);
     if (read.ok && read.data) expect(read.data.status).toBe("calculated");
+  });
+});
+
+describe("settlePortCall — balance to amount", () => {
+  // A dedicated contract + rule set for settlement-specific terms.
+  let contractId: string;
+  let verId: string;
+
+  async function makeTerm(
+    allowance: string,
+    demurrageRate: string,
+    despatchRate: string | null,
+    despatchBasis: string | null
+  ): Promise<string> {
+    const [t] = await db.insert(contractLaytimeTerms).values({
+      organizationId: orgA, contractId, function: "LOAD",
+      allowance, allowanceUnit: "days", demurrageRate,
+      despatchRate, despatchBasis,
+      commencementRule: "NOR_ACCEPTED", turnTimeHours: "24", turnTimeTrigger: "NOR_ACCEPTED",
+      ruleSetVersionId: verId,
+    }).returning({ id: contractLaytimeTerms.id });
+    return t.id;
+  }
+
+  async function calcedPortCall(termId: string): Promise<string> {
+    currentToken = adminToken;
+    const pc = await makePortCall(termId);
+    await addEvent(pc, typeNorAccepted, "2026-06-12T05:00:00Z");
+    await addEvent(pc, typeOpsCompleted, "2026-06-15T05:00:00Z");
+    await recalculatePortCall(pc);
+    return pc;
+  }
+
+  beforeAll(async () => {
+    const [c] = await db.insert(contracts).values({
+      organizationId: orgA, reference: `CS-${stamp}`, counterparty: "Settle Co",
+    }).returning({ id: contracts.id });
+    contractId = c.id;
+    const [rs] = await db.insert(laytimeRuleSets).values({ organizationId: orgA, name: `RSS-${stamp}` }).returning({ id: laytimeRuleSets.id });
+    const [ver] = await db.insert(laytimeRuleSetVersions).values({
+      organizationId: orgA, ruleSetId: rs.id, versionNumber: 1,
+      excludedWeekdays: [], excludeHolidays: false, eiuApplies: true, weatherApplies: false,
+    }).returning({ id: laytimeRuleSetVersions.id });
+    verId = ver.id;
+  });
+
+  it("settles demurrage on an exceeded balance (pro-rated per day)", async () => {
+    // allowance 1 day, used 2 days → exceeded 1 day at 2000/day = 2000.
+    const term = await makeTerm("1", "2000", null, null);
+    const pc = await calcedPortCall(term);
+    const r = await settlePortCall(pc);
+    expect(r.ok).toBe(true);
+    if (r.ok && r.data.status === "settled" && r.data.settlement.kind === "demurrage") {
+      expect(r.data.settlement.days).toBe(1);
+      expect(r.data.settlement.amount).toBe(2000);
+    } else {
+      throw new Error("expected a demurrage settlement");
+    }
+  });
+
+  it("owes nothing when saved and no despatch is configured", async () => {
+    const term = await makeTerm("10", "1000", null, null);
+    const pc = await calcedPortCall(term);
+    const r = await settlePortCall(pc);
+    expect(r.ok).toBe(true);
+    if (r.ok && r.data.status === "settled" && r.data.settlement.kind === "none") {
+      expect(r.data.settlement.reason).toBe("NO_DESPATCH_CONFIGURED");
+    } else {
+      throw new Error("expected a none settlement");
+    }
+  });
+
+  it("refuses despatch when configured (basis withheld)", async () => {
+    const term = await makeTerm("10", "1000", "500", "all time saved");
+    const pc = await calcedPortCall(term);
+    const r = await settlePortCall(pc);
+    expect(r.ok).toBe(true);
+    if (r.ok && r.data.status === "settlement_refused") {
+      expect(r.data.code).toBe("DESPATCH_BASIS_WITHHELD");
+    } else {
+      throw new Error("expected a settlement refusal");
+    }
+  });
+
+  it("reports a refused calculation as unsettleable", async () => {
+    currentToken = adminToken;
+    const term = await makeTerm("10", "1000", null, null);
+    const pc = await makePortCall(term);
+    await addEvent(pc, typeNorAccepted, "2026-06-12T05:00:00Z"); // no OPS_COMPLETED
+    await recalculatePortCall(pc);
+    const r = await settlePortCall(pc);
+    expect(r.ok).toBe(true);
+    if (r.ok && r.data.status === "calculation_refused") {
+      expect(r.data.code).toBe("WINDOW_END_EVENT_MISSING");
+    } else {
+      throw new Error("expected calculation_refused");
+    }
+  });
+
+  it("reports no_calculation for a port call never calculated", async () => {
+    currentToken = adminToken;
+    const term = await makeTerm("10", "1000", null, null);
+    const pc = await makePortCall(term);
+    const r = await settlePortCall(pc);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.status).toBe("no_calculation");
   });
 });
