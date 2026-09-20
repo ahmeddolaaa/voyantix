@@ -48,7 +48,7 @@ export type CalendarInputs = {
 };
 
 /** Formats local Y-M-D as a zero-padded YYYY-MM-DD string. */
-function toLocalDateKey(year: number, month: number, day: number): string {
+export function toLocalDateKey(year: number, month: number, day: number): string {
   const p2 = (n: number) => String(n).padStart(2, "0");
   return `${year}-${p2(month)}-${p2(day)}`;
 }
