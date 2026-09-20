@@ -179,6 +179,12 @@ export const stoppages = pgTable(
       t.portCallId,
       t.startTime
     ),
+    // Composite unique target so a LaytimeInterval↔Stoppage link can hold a
+    // tenant-safe composite FK into this table (Phase 7).
+    orgIdCompositeIdx: unique("stoppages_id_org_unique").on(
+      t.id,
+      t.organizationId
+    ),
     // PO13 — see the file comment above on why this is strict.
     endAfterStartCheck: check(
       "stoppages_end_after_start_check",
