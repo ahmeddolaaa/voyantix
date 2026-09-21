@@ -22,6 +22,7 @@ import { Field, TextInput, FormError, SubmitButton } from "@/components/forms";
 import { PortCallEvents } from "@/components/admin/PortCallEvents";
 import { PortCallStoppages } from "@/components/admin/PortCallStoppages";
 import { PortCallShifts } from "@/components/admin/PortCallShifts";
+import { PortCallCalculation } from "@/components/admin/PortCallCalculation";
 import {
   Card,
   PageTitle,
@@ -893,6 +894,11 @@ export function VoyageDetailScreen({
                   status: "active" as const,
                 }))}
                 facilities={facilitiesForPort(c.portId)}
+              />
+
+              <PortCallCalculation
+                portCallId={c.id}
+                timeZone={c.effectiveTimezone}
               />
             </Card>
           );

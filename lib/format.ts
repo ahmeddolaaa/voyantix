@@ -42,3 +42,35 @@ export function formatInstant(date: Date, timeZone: string): string {
     timeZone,
   }).format(date);
 }
+
+/**
+ * Formats a duration in seconds as laytime days/hours/minutes, e.g.
+ * "2d 03h 15m". Laytime is quoted in running days (24h), so days are the
+ * natural top unit. Negative durations (an exceeded balance) keep their sign.
+ */
+export function formatDurationSeconds(totalSeconds: number): string {
+  const sign = totalSeconds < 0 ? "-" : "";
+  let s = Math.abs(Math.round(totalSeconds));
+  const days = Math.floor(s / 86400);
+  s -= days * 86400;
+  const hours = Math.floor(s / 3600);
+  s -= hours * 3600;
+  const minutes = Math.floor(s / 60);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (days > 0) return `${sign}${days}d ${pad(hours)}h ${pad(minutes)}m`;
+  if (hours > 0) return `${sign}${hours}h ${pad(minutes)}m`;
+  return `${sign}${minutes}m`;
+}
+
+/**
+ * Formats a settlement amount. Currency is carried by the term's rate and is
+ * not stored, so no symbol is shown — grouping only, to two decimals when
+ * fractional.
+ */
+export function formatAmount(value: number): string {
+  const hasFraction = Math.abs(value % 1) > 1e-9;
+  return value.toLocaleString("en-GB", {
+    minimumFractionDigits: hasFraction ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+}
