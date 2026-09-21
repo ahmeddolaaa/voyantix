@@ -113,39 +113,49 @@ export function PortCallTimeline({
       )}
 
       {open && marks.length > 0 && (
-        <div className="mt-1">
+        <div className="mt-2">
           {marks.map((m, i) => {
             const prev = i > 0 ? marks[i - 1] : null;
             const gapSeconds = prev ? (m.at.getTime() - prev.at.getTime()) / 1000 : 0;
+            const last = i === marks.length - 1;
+            const tone = markTone(m);
+            const dotColor =
+              tone === "rust"
+                ? "var(--rust)"
+                : tone === "teal"
+                  ? "var(--teal)"
+                  : tone === "brass"
+                    ? "var(--brass)"
+                    : "var(--steel)";
             return (
-              <div key={i}>
-                {prev && gapSeconds > 0 && (
-                  <div
-                    className="text-[11px] num pl-[104px] py-0.5"
-                    style={muted}
-                    aria-hidden
-                  >
-                    ⋮ {formatDurationSeconds(gapSeconds)}
-                  </div>
-                )}
-                <div className="flex items-start gap-3 text-[12.5px]">
-                  <span className="num shrink-0 w-[96px] text-right" style={muted}>
-                    {formatInstant(m.at, timeZone)}
-                  </span>
+              <div key={i} className="flex items-stretch gap-3 text-[12.5px]">
+                <span
+                  className="num shrink-0 w-[96px] text-right pt-[1px]"
+                  style={muted}
+                >
+                  {formatInstant(m.at, timeZone)}
+                </span>
+                {/* Timeline spine: a bead per fact, joined by a continuous
+                    hairline so the port call reads as one chronological track. */}
+                <div className="shrink-0 flex flex-col items-center">
                   <span
-                    className="shrink-0 mt-[5px] w-2 h-2 rounded-full"
-                    style={{
-                      background:
-                        markTone(m) === "rust"
-                          ? "var(--rust)"
-                          : markTone(m) === "teal"
-                            ? "var(--teal)"
-                            : markTone(m) === "brass"
-                              ? "var(--brass)"
-                              : "var(--steel)",
-                    }}
+                    className="mt-[5px] w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ background: dotColor, boxShadow: "0 0 0 2px var(--card)" }}
                   />
+                  {!last && (
+                    <span
+                      className="flex-1 w-px my-0.5"
+                      style={{ background: "var(--line)" }}
+                    />
+                  )}
+                </div>
+                <div className={last ? "" : "pb-3"}>
                   <span style={{ color: "var(--ink)" }}>{m.label}</span>
+                  {prev && gapSeconds > 0 && (
+                    <span className="num text-[11px] ml-2" style={muted}>
+                      +{formatDurationSeconds(gapSeconds)}
+                    </span>
+                  )}
                 </div>
               </div>
             );

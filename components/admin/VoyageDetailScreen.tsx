@@ -397,7 +397,7 @@ export function VoyageDetailScreen({
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-8 py-8">
+    <div className="max-w-7xl mx-auto px-8 py-8">
       <div className="mb-6">
         <Link
           href="/admin/voyages"
@@ -643,6 +643,10 @@ export function VoyageDetailScreen({
                 </div>
               </div>
 
+              <div className="lg:flex lg:gap-7">
+                {/* Main operational column: cargo, commercial term, and the
+                    operational log (events, stoppages, statement of facts). */}
+                <div className="lg:flex-[1.7] min-w-0">
               <div
                 className="mt-4 pt-4"
                 style={{ borderTop: "1px solid var(--line)" }}
@@ -894,6 +898,23 @@ export function VoyageDetailScreen({
                 timeZone={c.effectiveTimezone}
               />
 
+              <PortCallTimeline
+                events={initialEventsByPortCall[c.id] ?? []}
+                stoppages={initialStoppagesByPortCall[c.id] ?? []}
+                eventTypes={eventTypes}
+                reasons={stoppageReasons}
+                timeZone={c.effectiveTimezone}
+              />
+                </div>
+
+                {/* Right support rail: the computed laytime result and shift
+                    performance sit alongside the operational log they read. */}
+                <div className="lg:flex-1 lg:max-w-[440px] min-w-0">
+              <PortCallCalculation
+                portCallId={c.id}
+                timeZone={c.effectiveTimezone}
+              />
+
               <PortCallShifts
                 portCallId={c.id}
                 portCallFunction={c.function}
@@ -905,19 +926,8 @@ export function VoyageDetailScreen({
                 }))}
                 facilities={facilitiesForPort(c.portId)}
               />
-
-              <PortCallTimeline
-                events={initialEventsByPortCall[c.id] ?? []}
-                stoppages={initialStoppagesByPortCall[c.id] ?? []}
-                eventTypes={eventTypes}
-                reasons={stoppageReasons}
-                timeZone={c.effectiveTimezone}
-              />
-
-              <PortCallCalculation
-                portCallId={c.id}
-                timeZone={c.effectiveTimezone}
-              />
+                </div>
+              </div>
             </Card>
           );
         })}
