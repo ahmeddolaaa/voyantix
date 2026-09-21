@@ -17,6 +17,7 @@
   --surface: #f4f6f8;   /* global page canvas (cool grey) */
   --card: #ffffff;      /* cards, panels, tables, sheet */
   --bg-subtle: #f8f9fa; /* subtle sections / table headers */
+  --bg: #f8f9fa;        /* legacy alias → subtle section fill */
   --line: #e1e5e8;      /* borders / dividers */
   --line-soft: #eef1f4;
 
@@ -127,4 +128,10 @@ a {
   .no-print { display: none !important; }
   body { background: #fff !important; }
   .print-document { box-shadow: none !important; border: none !important; }
+  /* Keep the teal/gold letterhead and settlement colours on paper — a laytime
+     statement is a commercial document, not a grey printout. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }

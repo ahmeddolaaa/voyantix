@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { PrimaryButton, SecondaryButton, StatusBadge } from "@/components/ui";
+import { PrimaryButton, StatusBadge } from "@/components/ui";
+import { BrandMark } from "@/components/BrandMark";
 import { formatInstant, formatDurationSeconds, formatAmount } from "@/lib/format";
 
 /**
@@ -84,10 +85,19 @@ export function StatementDocument({ doc }: { doc: StatementDoc }) {
           boxShadow: "0 1px 2px rgba(19,38,44,.05), 0 10px 28px rgba(19,38,44,.07)",
         }}
       >
-        {/* Header */}
-        <div className="flex items-start justify-between pb-4 mb-4" style={{ borderBottom: "2px solid var(--ink)" }}>
+        {/* Letterhead */}
+        <div className="flex items-start justify-between pb-4 mb-5" style={{ borderBottom: "2px solid var(--brand)" }}>
           <div>
-            <div className="font-display text-[20px] font-medium" style={{ color: "var(--ink)" }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <BrandMark size={18} />
+              <span
+                className="font-display text-[12.5px] font-semibold"
+                style={{ color: "var(--brand)", letterSpacing: "0.08em" }}
+              >
+                VOYANTIX
+              </span>
+            </div>
+            <div className="font-display text-[22px] font-bold" style={{ color: "var(--ink)" }}>
               Laytime Statement
             </div>
             <div className="text-[13px] mt-0.5" style={muted}>
@@ -198,10 +208,12 @@ export function StatementDocument({ doc }: { doc: StatementDoc }) {
             </div>
             <div
               className="flex justify-between py-2 mt-1"
-              style={{ borderTop: "2px solid var(--ink)", fontWeight: 600 }}
+              style={{ borderTop: "2px solid var(--brand)", fontWeight: 700 }}
             >
               <span>Net claim</span>
-              <span className="num">{formatAmount(doc.netClaim)}</span>
+              <span className="num" style={{ color: "var(--brand)" }}>
+                {formatAmount(doc.netClaim)}
+              </span>
             </div>
           </div>
         </div>
