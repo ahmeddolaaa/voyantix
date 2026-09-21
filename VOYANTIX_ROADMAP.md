@@ -61,7 +61,7 @@
 | 5 | Operational — Event, Stoppage, ShiftPerformance | ✅ COMPLETE | — |
 | 6 | Laytime Engine rebuild | ✅ COMPLETE | 🛑 B1–B5, B8 |
 | 7 | Calculation + Statement persistence + StatementScopeResult | 🔄 BACKEND COMPLETE (UI → Ph8) | 🛑 B7 |
-| 8 | Professional UX | ⏳ FUTURE | — |
+| 8 | Professional UX | 🔄 IN PROGRESS (calc + statement panels done) | — |
 | 9 | Reporting | ⏳ FUTURE | 🛑 B6, B9 |
 | 10 | Full validation + commercial readiness review | ⏳ FUTURE | — |
 
@@ -133,10 +133,11 @@
 **Frozen behaviours:** canonical statement (0 → empty, 1 → canonical, >1 → integrity exception, never pick one); one active draft (0 → create, 1 → update, >1 → log & write nothing); recalculation deletes existing intervals and rewrites inside one transaction; historical reproducibility via the three layers.
 **Must NOT include:** reporting (Phase 9).
 
-## Phase 8 — Professional UX · ⏳ FUTURE · OFFICIAL
+## Phase 8 — Professional UX · 🔄 IN PROGRESS · OFFICIAL
 **Purpose:** raise the interface from functional to commercial-grade (dense dashboard, SOF-style timeline, document-like statement, real loading/error/empty states, multi-column forms with grouping).
 **Depends on:** the underlying data/workflows of Phases 3–7 existing.
 **Note:** do not build future-phase UI early just because a table exists.
+**Done (2026-09-21, browser-verified):** the port-call laytime calculation panel (Recalculate → balance, window, settlement, interval time-sheet; refusals shown as first-class outcomes) and the voyage statement panel (build/rebuild draft, per-port-call scope rollup, adjustments ledger + net claim, finalize). **Remaining:** dense operational dashboard, SOF-style timeline, document-like printable statement, and the broader loading/error/empty-state polish.
 
 ## Phase 9 — Reporting · ⏳ FUTURE · OFFICIAL · 🛑 B6, B9
 **Purpose:** reports built on persisted engine output only — no fabricated figures.
