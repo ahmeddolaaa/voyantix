@@ -8,9 +8,9 @@ import { ButtonHTMLAttributes, ReactNode } from "react";
  * only feedback for a slow save is silence and they click again.
  */
 const buttonBase =
-  "px-4 py-2 rounded-md text-[13px] font-medium transition-colors " +
+  "px-4 py-2 rounded text-[13px] font-medium transition-colors " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 " +
-  "focus-visible:ring-[var(--brass)] focus-visible:ring-offset-[var(--surface)] " +
+  "focus-visible:ring-[var(--brand)] focus-visible:ring-offset-[var(--surface)] " +
   "disabled:cursor-not-allowed";
 
 function disabledStyle(disabled: boolean | undefined) {
@@ -25,7 +25,7 @@ export function PrimaryButton(
     <button
       {...rest}
       className={`${buttonBase} text-white ${className}`}
-      style={{ background: "var(--brass)", ...disabledStyle(rest.disabled), ...style }}
+      style={{ background: "var(--brand)", ...disabledStyle(rest.disabled), ...style }}
     />
   );
 }
@@ -55,7 +55,7 @@ export function DangerButton(props: ButtonHTMLAttributes<HTMLButtonElement>) {
     <button
       {...rest}
       className={`${buttonBase} text-white ${className}`}
-      style={{ background: "var(--rust)", ...disabledStyle(rest.disabled), ...style }}
+      style={{ background: "var(--danger)", ...disabledStyle(rest.disabled), ...style }}
     />
   );
 }
@@ -73,7 +73,7 @@ export function Card({
       style={{
         background: "var(--card)",
         border: "1px solid var(--line)",
-        boxShadow: "0 1px 2px rgba(19,38,44,.05), 0 10px 28px rgba(19,38,44,.07)",
+        boxShadow: "0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06)",
       }}
     >
       {children}
@@ -83,7 +83,7 @@ export function Card({
 
 export function PageTitle({ children }: { children: ReactNode }) {
   return (
-    <h1 className="font-display text-[22px] font-medium" style={{ color: "var(--ink)" }}>
+    <h1 className="font-display text-[24px] font-bold" style={{ color: "var(--ink)" }}>
       {children}
     </h1>
   );

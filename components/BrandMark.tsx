@@ -1,19 +1,21 @@
 export function BrandMark({ size = 24 }: { size?: number }) {
+  // A crisp gold "V" chevron — the restrained brand accent.
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      style={{ color: "#E6A05A" }}
+      style={{ color: "var(--gold)" }}
+      aria-hidden
     >
       <path
-        d="M3 18C7 18 6 8 11 8C15 8 14 15 19 15"
+        d="M4.5 5.5 L12 18.5 L19.5 5.5"
         stroke="currentColor"
-        strokeWidth="1.8"
+        strokeWidth="2.4"
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
-      <circle cx="19" cy="15" r="2" fill="currentColor" />
     </svg>
   );
 }

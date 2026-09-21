@@ -1,22 +1,39 @@
 @import "tailwindcss";
 
+/*
+ * VOYANTIX design tokens — enterprise maritime B2B.
+ * Dark-teal brand, restrained gold accent, cool-grey canvas, Inter type.
+ * Legacy token NAMES are kept so every existing component restyles from here;
+ * their VALUES are remapped to the approved palette. Semantic states:
+ *   teal  → active/success (green)   rust → warning (amber)
+ *   brass → gold accent              danger → destructive (red)
+ */
 :root {
-  --ink: #13262c;
-  --ink-soft: #3e5860;
-  --steel: #71868d;
-  --navy: #0e3438;
-  --navy-2: #0a2528;
-  --surface: #f6f4ee;
-  --card: #ffffff;
-  --line: #e1ddd1;
-  --line-soft: #edeae0;
-  --brass: #b5651d;
-  --brass-soft: #f3e1cb;
-  --teal: #1d6e5c;
-  --teal-soft: #deefe9;
-  --rust: #b23a22;
-  --rust-soft: #f6e1d8;
-  --accent: #c1740f;
+  --ink: #1e293b;
+  --ink-soft: #334155;
+  --steel: #64748b;
+  --navy: #0a3c42;      /* nav / brand primary (dark teal) */
+  --navy-2: #06272b;
+  --surface: #f4f6f8;   /* global page canvas (cool grey) */
+  --card: #ffffff;      /* cards, panels, tables, sheet */
+  --bg-subtle: #f8f9fa; /* subtle sections / table headers */
+  --line: #e1e5e8;      /* borders / dividers */
+  --line-soft: #eef1f4;
+
+  --brand: #0a3c42;     /* primary actions (teal) */
+  --brand-2: #1a535c;   /* active/selected, secondary teal, links */
+  --gold: #c5a059;      /* restrained brand accent */
+  --gold-soft: #f4ecd9;
+  --brass: #c5a059;     /* legacy alias → gold accent */
+  --brass-soft: #f4ecd9;
+
+  --teal: #2e7d32;      /* active / success (green) */
+  --teal-soft: #e8f5e9;
+  --rust: #d97706;      /* warning / time-exceeded (amber) */
+  --rust-soft: #fef3c7;
+  --danger: #b3261e;    /* destructive (remove) */
+  --danger-soft: #fbe4e2;
+  --accent: #c5a059;
 }
 
 @theme inline {
@@ -27,23 +44,30 @@
   --color-navy-2: var(--navy-2);
   --color-surface: var(--surface);
   --color-card: var(--card);
+  --color-bg-subtle: var(--bg-subtle);
   --color-line: var(--line);
   --color-line-soft: var(--line-soft);
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
   --color-brass: var(--brass);
   --color-brass-soft: var(--brass-soft);
   --color-teal: var(--teal);
   --color-teal-soft: var(--teal-soft);
   --color-rust: var(--rust);
   --color-rust-soft: var(--rust-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
   --color-accent: var(--accent);
 
-  --font-display: "Fraunces", serif;
-  --font-sans: "IBM Plex Sans", sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Inter", ui-monospace, "SFMono-Regular", monospace;
 }
 
 ::selection {
-  background: var(--brass-soft);
+  background: var(--gold-soft);
 }
 
 * {
@@ -68,11 +92,14 @@ h2,
 h3,
 .serif {
   font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
+/* Tabular figures for all operational/financial numbers. */
 .num {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 a {
@@ -81,7 +108,7 @@ a {
 
 .vx-input {
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 9px 11px;
   font-size: 13px;
   background: var(--card);
@@ -90,7 +117,7 @@ a {
   font-family: var(--font-sans);
 }
 .vx-input:focus {
-  outline: 2px solid var(--brass);
+  outline: 2px solid var(--brand);
   outline-offset: 1px;
 }
 
