@@ -23,6 +23,7 @@ import { PortCallEvents } from "@/components/admin/PortCallEvents";
 import { PortCallStoppages } from "@/components/admin/PortCallStoppages";
 import { PortCallShifts } from "@/components/admin/PortCallShifts";
 import { PortCallCalculation } from "@/components/admin/PortCallCalculation";
+import { VoyageStatement } from "@/components/admin/VoyageStatement";
 import {
   Card,
   PageTitle,
@@ -421,6 +422,14 @@ export function VoyageDetailScreen({
           </StatusBadge>
         </div>
       </div>
+
+      <VoyageStatement
+        voyageId={voyageId}
+        timeZone={calls[0]?.effectiveTimezone ?? "UTC"}
+        portCallLabels={Object.fromEntries(
+          calls.map((c) => [c.id, `${c.sequence} · ${portName(c.portId)}`])
+        )}
+      />
 
       <div className="flex items-center justify-between mb-3">
         <SectionHeading>Port calls</SectionHeading>
