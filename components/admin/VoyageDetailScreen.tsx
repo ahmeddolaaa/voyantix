@@ -24,6 +24,7 @@ import { PortCallStoppages } from "@/components/admin/PortCallStoppages";
 import { PortCallShifts } from "@/components/admin/PortCallShifts";
 import { PortCallCalculation } from "@/components/admin/PortCallCalculation";
 import { VoyageStatement } from "@/components/admin/VoyageStatement";
+import { PortCallTimeline } from "@/components/admin/PortCallTimeline";
 import {
   Card,
   PageTitle,
@@ -903,6 +904,14 @@ export function VoyageDetailScreen({
                   status: "active" as const,
                 }))}
                 facilities={facilitiesForPort(c.portId)}
+              />
+
+              <PortCallTimeline
+                events={initialEventsByPortCall[c.id] ?? []}
+                stoppages={initialStoppagesByPortCall[c.id] ?? []}
+                eventTypes={eventTypes}
+                reasons={stoppageReasons}
+                timeZone={c.effectiveTimezone}
               />
 
               <PortCallCalculation
