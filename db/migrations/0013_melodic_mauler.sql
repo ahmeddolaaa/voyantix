@@ -1,0 +1,3 @@
+ALTER TABLE "contract_laytime_terms" ADD COLUMN "version_number" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE "contract_laytime_terms" ADD COLUMN "superseded_by_term_id" uuid;--> statement-breakpoint
+ALTER TABLE "contract_laytime_terms" ADD CONSTRAINT "contract_laytime_terms_superseded_by_org_fk" FOREIGN KEY ("superseded_by_term_id","organization_id") REFERENCES "public"."contract_laytime_terms"("id","organization_id") ON DELETE no action ON UPDATE no action;

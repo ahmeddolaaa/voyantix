@@ -5,8 +5,11 @@ import {
   contracts,
   contractLaytimeTerms,
   laytimePools,
+  voyagePortCalls,
+  laytimeStatements,
+  laytimeCalculations,
 } from "@/db/schema";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { authorized, recordAudit } from "@/lib/auth/authorized";
 import { ForbiddenError } from "@/lib/auth/session";
 import { type ActionResult, ok, fail, withDatabaseErrors } from "./result";
@@ -180,6 +183,44 @@ async function contractInOrg(
   return rows.length > 0;
 }
 
+/**
+ * F14 freeze trigger: is this term depended on by a FINALIZED statement?
+ * A finalized statement for a voyage whose port call was calculated on this
+ * term makes the term immutable — editing it must create a new version rather
+ * than mutate the historical basis of that statement.
+ */
+async function isTermFrozen(
+  termId: string,
+  organizationId: string
+): Promise<boolean> {
+  const rows = await db
+    .select({ one: laytimeStatements.id })
+    .from(laytimeStatements)
+    .innerJoin(
+      voyagePortCalls,
+      and(
+        eq(voyagePortCalls.voyageId, laytimeStatements.voyageId),
+        eq(voyagePortCalls.organizationId, laytimeStatements.organizationId)
+      )
+    )
+    .innerJoin(
+      laytimeCalculations,
+      and(
+        eq(laytimeCalculations.portCallId, voyagePortCalls.id),
+        eq(laytimeCalculations.organizationId, voyagePortCalls.organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(laytimeStatements.organizationId, organizationId),
+        eq(laytimeStatements.status, "finalized"),
+        eq(laytimeCalculations.termId, termId)
+      )
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
 /** A referenced pool must belong to the SAME contract as the term (and, by
  *  the composite FK, the same org). Returns true when poolId is null or the
  *  pool is a valid pool of this contract. */
@@ -210,9 +251,13 @@ export async function listContractLaytimeTerms(
       return fail<ContractLaytimeTermRow[]>("NOT_FOUND", "Contract not found.");
     }
 
+    // Only LIVE versions are current terms; superseded versions (F14) stay in
+    // the database for the finalized statements that depend on them, never
+    // shown as an editable current term.
     const base = and(
       eq(contractLaytimeTerms.contractId, contractId),
-      eq(contractLaytimeTerms.organizationId, ctx.organizationId)
+      eq(contractLaytimeTerms.organizationId, ctx.organizationId),
+      isNull(contractLaytimeTerms.supersededByTermId)
     );
     const scope = options.includeInactive
       ? base
@@ -290,29 +335,33 @@ export async function createContractLaytimeTerm(
 }
 
 /**
- * Updates a term IN PLACE. Its contract is fixed (the payload has no
- * contractId), and organization ownership never changes.
+ * Updates a term. If NO finalized statement depends on it, it is edited in
+ * place (`versioned: false`). If one does (F14), the term is frozen: a NEW
+ * version is created carrying the edited values, this row is marked superseded
+ * and left intact (so the finalized statement's historical basis survives),
+ * and every live port call that referenced it is repointed to the new version
+ * so future work uses the current values. `id` in the result is always the
+ * LIVE term id after the operation (the new version's id when versioned).
  *
- * F14 DEFERRAL: when the statement phase exists, this path must first check
- * whether the term is depended on by a FINALIZED statement and, if so, create
- * a new term version instead of mutating the row. That branch is not built
- * now — no statements exist yet (roadmap PO7).
+ * Historical reproducibility (F20) is thereby protected structurally, on top
+ * of the resolvedRulesJson snapshot each calculation already carries.
  */
 export async function updateContractLaytimeTerm(
   termId: string,
   input: ContractLaytimeTermInput
-): Promise<ActionResult<{ id: string }>> {
-  return termAction<{ id: string }>("masterdata.write", async (ctx) => {
+): Promise<ActionResult<{ id: string; versioned: boolean }>> {
+  type Out = { id: string; versioned: boolean };
+  return termAction<Out>("masterdata.write", async (ctx) => {
     const validated = validateTermInput(input);
     if (!validated.ok) return validated;
     const v = validated.data;
 
-    return withDatabaseErrors<{ id: string }>(async () => {
+    return withDatabaseErrors<Out>(async () => {
       const existing = await db
         .select({
           contractId: contractLaytimeTerms.contractId,
-          function: contractLaytimeTerms.function,
-          allowance: contractLaytimeTerms.allowance,
+          versionNumber: contractLaytimeTerms.versionNumber,
+          supersededByTermId: contractLaytimeTerms.supersededByTermId,
         })
         .from(contractLaytimeTerms)
         .where(
@@ -323,59 +372,114 @@ export async function updateContractLaytimeTerm(
         );
 
       if (existing.length === 0) {
-        return fail<{ id: string }>("NOT_FOUND", "Term not found.");
+        return fail<Out>("NOT_FOUND", "Term not found.");
+      }
+      // A superseded row is historical and never edited directly.
+      if (existing[0].supersededByTermId !== null) {
+        return fail<Out>(
+          "INVALID_STATE",
+          "This term has been superseded by a newer version; edit the current version instead."
+        );
       }
       const contractId = existing[0].contractId;
+      const versionNumber = existing[0].versionNumber;
 
       // A pool, if given, must belong to the term's own contract.
       if (
         v.poolId !== null &&
         !(await poolBelongsToContract(v.poolId, contractId, ctx.organizationId))
       ) {
-        return fail<{ id: string }>(
+        return fail<Out>(
           "NOT_FOUND",
           "The selected pool does not belong to this contract."
         );
       }
 
-      const [updated] = await db
-        .update(contractLaytimeTerms)
-        .set({
-          function: v.function,
-          portId: v.portId,
-          cargoId: v.cargoId,
-          allowance: v.allowance,
-          allowanceUnit: v.allowanceUnit,
-          demurrageRate: v.demurrageRate,
-          despatchRate: v.despatchRate,
-          despatchBasis: v.despatchBasis,
-          turnTimeHours: v.turnTimeHours,
-          turnTimeTrigger: v.turnTimeTrigger,
-          commencementRule: v.commencementRule,
-          ruleSetVersionId: v.ruleSetVersionId,
-          poolId: v.poolId,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(contractLaytimeTerms.id, termId),
-            eq(contractLaytimeTerms.organizationId, ctx.organizationId)
-          )
-        )
-        .returning({ id: contractLaytimeTerms.id });
+      const editedValues = {
+        function: v.function,
+        portId: v.portId,
+        cargoId: v.cargoId,
+        allowance: v.allowance,
+        allowanceUnit: v.allowanceUnit,
+        demurrageRate: v.demurrageRate,
+        despatchRate: v.despatchRate,
+        despatchBasis: v.despatchBasis,
+        turnTimeHours: v.turnTimeHours,
+        turnTimeTrigger: v.turnTimeTrigger,
+        commencementRule: v.commencementRule,
+        ruleSetVersionId: v.ruleSetVersionId,
+        poolId: v.poolId,
+      };
 
-      if (!updated) {
-        return fail<{ id: string }>("NOT_FOUND", "Term not found.");
+      const frozen = await isTermFrozen(termId, ctx.organizationId);
+
+      if (!frozen) {
+        // Ordinary in-place edit.
+        const [updated] = await db
+          .update(contractLaytimeTerms)
+          .set({ ...editedValues, updatedAt: new Date() })
+          .where(
+            and(
+              eq(contractLaytimeTerms.id, termId),
+              eq(contractLaytimeTerms.organizationId, ctx.organizationId)
+            )
+          )
+          .returning({ id: contractLaytimeTerms.id });
+        if (!updated) return fail<Out>("NOT_FOUND", "Term not found.");
+
+        await recordAudit(ctx, {
+          entityType: "ContractLaytimeTerm",
+          entityId: termId,
+          action: "update",
+          after: v,
+        });
+        return ok({ id: updated.id, versioned: false });
       }
+
+      // Frozen: create a new version, supersede this row, repoint live port calls.
+      const newId = await db.transaction(async (tx) => {
+        const [newTerm] = await tx
+          .insert(contractLaytimeTerms)
+          .values({
+            organizationId: ctx.organizationId,
+            contractId,
+            ...editedValues,
+            versionNumber: versionNumber + 1,
+          })
+          .returning({ id: contractLaytimeTerms.id });
+
+        await tx
+          .update(contractLaytimeTerms)
+          .set({ supersededByTermId: newTerm.id, updatedAt: new Date() })
+          .where(
+            and(
+              eq(contractLaytimeTerms.id, termId),
+              eq(contractLaytimeTerms.organizationId, ctx.organizationId)
+            )
+          );
+
+        await tx
+          .update(voyagePortCalls)
+          .set({ contractLaytimeTermId: newTerm.id, updatedAt: new Date() })
+          .where(
+            and(
+              eq(voyagePortCalls.contractLaytimeTermId, termId),
+              eq(voyagePortCalls.organizationId, ctx.organizationId)
+            )
+          );
+
+        return newTerm.id;
+      });
 
       await recordAudit(ctx, {
         entityType: "ContractLaytimeTerm",
-        entityId: termId,
-        action: "update",
-        after: v,
+        entityId: newId,
+        action: "version",
+        before: { termId, versionNumber },
+        after: { ...v, versionNumber: versionNumber + 1, supersedes: termId },
       });
 
-      return ok({ id: updated.id });
+      return ok({ id: newId, versioned: true });
     });
   });
 }

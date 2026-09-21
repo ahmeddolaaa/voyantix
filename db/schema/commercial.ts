@@ -270,6 +270,16 @@ export const contractLaytimeTerms = pgTable(
     ruleSetVersionId: uuid("rule_set_version_id").notNull(),
     poolId: uuid("pool_id"),
 
+    // VERSIONING (F14): a term becomes immutable once a FINALIZED statement
+    // depends on it. Editing such a term creates a NEW version (versionNumber
+    // incremented) and marks this row superseded, leaving it intact so the
+    // finalized statement's historical basis is preserved. supersededByTermId
+    // null = the current (live) version; live port calls always point at a
+    // live term. The action layer enforces the freeze trigger; the schema
+    // provides the chain.
+    versionNumber: integer("version_number").notNull().default(1),
+    supersededByTermId: uuid("superseded_by_term_id"),
+
     status: entityStatusEnum("status").notNull().default("active"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -283,6 +293,13 @@ export const contractLaytimeTerms = pgTable(
       t.id,
       t.organizationId
     ),
+    // A superseding term must belong to the SAME organization (tenant-safe
+    // version chain).
+    supersededByOrgFk: foreignKey({
+      columns: [t.supersededByTermId, t.organizationId],
+      foreignColumns: [t.id, t.organizationId],
+      name: "contract_laytime_terms_superseded_by_org_fk",
+    }),
     // CROSS-TENANT INTEGRITY on every reference — each target must belong to
     // the SAME organization.
     contractOrgFk: foreignKey({
