@@ -42,14 +42,18 @@ Items where **deferring the architectural consideration would cause rework or
 structural damage**, so they should influence decisions now — even though their
 full behaviour/semantics can be settled later.
 
-### AN-1 · Fractional / partial-interval counting (E4) — HIGHEST
-- **Category:** B (representation) + A (when/why a fraction applies — withheld).
-- **Finding:** the roadmap pre-flagged (2026-09-16) that an interval must carry
-  a counting **fraction (0..1), not a binary flag**, and that this must be
-  settled **before** the classification step. The engine shipped with a
-  **binary** `IntervalTreatment = COUNTED | EXCLUDED` (`classify.ts`) and a
-  binary persisted enum (`laytime_intervals.treatment`). The requirement was
-  bypassed.
+### AN-1 · Fractional / partial-interval counting (E4) — ✅ REPRESENTATION RESOLVED (2026-09-21)
+- **Category:** B (representation — DONE) + A (when/why a fraction < 1 applies — still withheld).
+- **Resolution:** `ClassifiedInterval.countedFraction` (0..1) is now the
+  authoritative counted contribution; `treatment` is its coarse view;
+  accumulation sums `elapsed × countedFraction`; persisted as
+  `laytime_intervals.counted_fraction` (migration 0014); the time-sheet UI is
+  fraction-aware. Behaviour is identical today (fractions are 0 or 1). NO
+  trigger/percentage/precedence invented — those stay Category A (withheld).
+- **Finding (historical):** the roadmap pre-flagged (2026-09-16) that an interval
+  must carry a counting **fraction (0..1), not a binary flag**, settled
+  **before** the classification step — but the engine had shipped **binary**
+  (`classify.ts`, `laytime_intervals.treatment`). Now closed.
 - **Why it matters:** real charterparties count some periods at a reduced rate
   (e.g. half-rate weather/shifting time, "time to count as 50%"). The binary
   model cannot express this. Retrofitting later reworks the engine core
@@ -111,7 +115,7 @@ full behaviour/semantics can be settled later.
 ### Core Foundation — the fundamental product promise
 | Capability | Cat | Why / primary user | Status | Deps | Blocks now | Target |
 |---|---|---|---|---|---|---|
-| Fractional interval counting (AN-1) | B+A | real CPs count periods at a fraction · analyst | binary today | engine core | no (do next) | Ph8/9 |
+| Fractional interval counting (AN-1) | B(done)+A | real CPs count periods at a fraction · analyst | ✅ representation done; semantic withheld | — | no | done 2026-09-21 |
 | Cumulative-state treatment / OODAOD (AN-2) | B+A | common CP rule · analyst | not modelled | accumulate stage | no | Ph9 |
 | Currency capture + aggregation (AN-3) | C+B | correct money across a book · commercial | missing | contract/term field | no | Ph9 pre-req |
 | SOF / document ingestion → reviewable timeline | B | capture facts fast & defensibly · operator/analyst | not built | doc model, review UI | no | Beta |
