@@ -93,3 +93,11 @@ a {
   outline: 2px solid var(--brass);
   outline-offset: 1px;
 }
+
+/* Print: statement documents print as clean paper — no app chrome, white
+   background, and elements marked .no-print (nav, action buttons) hidden. */
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff !important; }
+  .print-document { box-shadow: none !important; border: none !important; }
+}

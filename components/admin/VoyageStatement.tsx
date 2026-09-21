@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useTransition, useCallback } from "react";
 import {
   getStatement,
@@ -128,7 +129,16 @@ export function VoyageStatement({
             </StatusBadge>
           )}
         </div>
-        <div className="inline-flex gap-2">
+        <div className="inline-flex gap-2 items-center">
+          {stmt && (
+            <Link
+              href={`/admin/voyages/${voyageId}/statement`}
+              className="text-[12px] no-underline"
+              style={{ color: "var(--brass)" }}
+            >
+              View as document →
+            </Link>
+          )}
           {isDraft && (
             <SubmitButton onClick={finalize} pending={pending}>
               Finalize

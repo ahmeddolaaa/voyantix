@@ -18,7 +18,7 @@ export default async function AppLayout({
   return (
     <div className="flex flex-col min-h-screen">
       <div
-        className="h-[52px] flex items-center gap-[26px] px-[22px] shrink-0"
+        className="no-print h-[52px] flex items-center gap-[26px] px-[22px] shrink-0"
         style={{ background: "var(--navy)" }}
       >
         <Link href="/portfolio" className="flex items-center gap-[9px] no-underline">
