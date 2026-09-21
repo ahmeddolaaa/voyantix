@@ -171,3 +171,41 @@ export const statementScopeResults = pgTable(
     }),
   })
 );
+
+// LAYTIME ADJUSTMENT — a manual, audited money line item against a DRAFT
+// statement (Phase 7). It is a settlement-side LEDGER entry, not a laytime
+// rule: it NEVER changes the engine balance (F16 keeps the engine's balance
+// and the settlement layer separate). A signed amount (negative reduces the
+// claim, positive adds to it) plus a reason; the statement's net is the
+// settled gross plus the sum of its adjustments — pure arithmetic, no invented
+// laytime semantic. Currency is implied by the term rates, as in settlement.
+//
+// Adjustments are only permitted while the statement is a draft; a finalized
+// statement is canonical and locked (enforced in the action layer). The fuller
+// adjustment workflow (approvals, application rules) remains deferred.
+export const laytimeAdjustments = pgTable(
+  "laytime_adjustments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    statementId: uuid("statement_id").notNull(),
+    amount: numeric("amount").notNull(),
+    reason: text("reason").notNull(),
+    createdByUserId: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    orgIdx: index("laytime_adjustments_org_idx").on(t.organizationId),
+    statementIdx: index("laytime_adjustments_statement_idx").on(t.statementId),
+    statementOrgFk: foreignKey({
+      columns: [t.statementId, t.organizationId],
+      foreignColumns: [laytimeStatements.id, laytimeStatements.organizationId],
+      name: "laytime_adjustments_statement_org_fk",
+    }).onDelete("cascade"),
+  })
+);

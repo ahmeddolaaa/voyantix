@@ -29,6 +29,7 @@ import { createSession } from "@/lib/auth/session";
 import { recalculatePortCall } from "../laytime-calculations";
 import {
   buildStatementDraft, finalizeStatement, getStatement,
+  addAdjustment, deleteAdjustment,
 } from "../laytime-statements";
 
 const stamp = Date.now();
@@ -255,5 +256,79 @@ describe("authorization and tenancy", () => {
     const r = await buildStatementDraft(voyageMain);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("NOT_FOUND");
+  });
+});
+
+describe("adjustments — manual money ledger on a draft", () => {
+  async function draftVoyageWithDemurrage(): Promise<{ voyageId: string; statementId: string }> {
+    currentToken = adminToken;
+    const [v] = await db.insert(voyages).values({
+      organizationId: orgA, voyageReference: `VA-${stamp}-${seq}`, vesselName: "MV Adj",
+    }).returning({ id: voyages.id });
+    const pc = await makePortCall(v.id, termExceed); // exceeded 1 day @ 2000
+    await addEvent(pc, typeNor, "2026-06-12T05:00:00Z");
+    await addEvent(pc, typeOps, "2026-06-15T05:00:00Z");
+    await recalculatePortCall(pc);
+    const build = await buildStatementDraft(v.id);
+    if (!build.ok) throw new Error("build failed");
+    return { voyageId: v.id, statementId: build.data.statementId };
+  }
+
+  it("nets a negative adjustment into the claim", async () => {
+    const { voyageId, statementId } = await draftVoyageWithDemurrage();
+    currentToken = adminToken;
+    const a = await addAdjustment(statementId, { amount: -500, reason: "Agreed reduction" });
+    expect(a.ok).toBe(true);
+    const r = await getStatement(voyageId);
+    if (r.ok && r.data) {
+      expect(r.data.demurrageTotal).toBe(2000);
+      expect(r.data.adjustmentsTotal).toBe(-500);
+      expect(r.data.netClaim).toBe(1500);
+      expect(r.data.adjustments.length).toBe(1);
+    } else {
+      throw new Error("expected a statement");
+    }
+  });
+
+  it("removes an adjustment", async () => {
+    const { voyageId, statementId } = await draftVoyageWithDemurrage();
+    currentToken = adminToken;
+    const a = await addAdjustment(statementId, { amount: 300, reason: "Extra cost" });
+    if (!a.ok) throw new Error("add failed");
+    const del = await deleteAdjustment(a.data.id);
+    expect(del.ok).toBe(true);
+    const r = await getStatement(voyageId);
+    if (r.ok && r.data) {
+      expect(r.data.adjustments.length).toBe(0);
+      expect(r.data.netClaim).toBe(2000);
+    }
+  });
+
+  it("rejects an empty reason and a non-finite amount", async () => {
+    const { statementId } = await draftVoyageWithDemurrage();
+    currentToken = adminToken;
+    const noReason = await addAdjustment(statementId, { amount: 100, reason: "  " });
+    expect(noReason.ok).toBe(false);
+    if (!noReason.ok) expect(noReason.code).toBe("VALIDATION_ERROR");
+    const badAmount = await addAdjustment(statementId, { amount: Number.NaN, reason: "x" });
+    expect(badAmount.ok).toBe(false);
+    if (!badAmount.ok) expect(badAmount.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("cannot add an adjustment to a finalized statement", async () => {
+    const { voyageId, statementId } = await draftVoyageWithDemurrage();
+    currentToken = adminToken;
+    await finalizeStatement(voyageId);
+    const a = await addAdjustment(statementId, { amount: -100, reason: "late" });
+    expect(a.ok).toBe(false);
+    if (!a.ok) expect(a.code).toBe("INVALID_STATE");
+  });
+
+  it("a viewer cannot add an adjustment", async () => {
+    const { statementId } = await draftVoyageWithDemurrage();
+    currentToken = viewerToken;
+    const a = await addAdjustment(statementId, { amount: -100, reason: "x" });
+    expect(a.ok).toBe(false);
+    if (!a.ok) expect(a.code).toBe("FORBIDDEN");
   });
 });

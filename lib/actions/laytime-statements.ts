@@ -8,6 +8,7 @@ import {
   laytimeCalculations,
   laytimeStatements,
   statementScopeResults,
+  laytimeAdjustments,
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { authorized, recordAudit } from "@/lib/auth/authorized";
@@ -354,6 +355,13 @@ export type StatementScope = {
   settlementRefusalCode: string | null;
 };
 
+export type StatementAdjustment = {
+  id: string;
+  amount: number;
+  reason: string;
+  createdAt: Date;
+};
+
 export type StatementView = {
   id: string;
   status: "draft" | "finalized";
@@ -362,6 +370,11 @@ export type StatementView = {
   despatchTotal: number;
   unresolvedCount: number;
   scopes: StatementScope[];
+  adjustments: StatementAdjustment[];
+  adjustmentsTotal: number;
+  /** Settled net plus adjustments: demurrageTotal − despatchTotal + adjustments.
+   *  A plain netting of the settled figures; no laytime rule is applied here. */
+  netClaim: number;
 };
 
 export async function getStatement(
@@ -444,6 +457,28 @@ export async function getStatement(
           };
         });
 
+        const adjustmentRows = await db
+          .select({
+            id: laytimeAdjustments.id,
+            amount: laytimeAdjustments.amount,
+            reason: laytimeAdjustments.reason,
+            createdAt: laytimeAdjustments.createdAt,
+          })
+          .from(laytimeAdjustments)
+          .where(
+            and(
+              eq(laytimeAdjustments.statementId, statement.id),
+              eq(laytimeAdjustments.organizationId, ctx.organizationId)
+            )
+          );
+        const adjustments: StatementAdjustment[] = adjustmentRows.map((a) => ({
+          id: a.id,
+          amount: Number(a.amount),
+          reason: a.reason,
+          createdAt: a.createdAt,
+        }));
+        const adjustmentsTotal = adjustments.reduce((sum, a) => sum + a.amount, 0);
+
         return ok<StatementView | null>({
           id: statement.id,
           status: statement.status,
@@ -452,12 +487,145 @@ export async function getStatement(
           despatchTotal,
           unresolvedCount,
           scopes,
+          adjustments,
+          adjustmentsTotal,
+          netClaim: demurrageTotal - despatchTotal + adjustmentsTotal,
         });
       }
     );
   } catch (e) {
     if (e instanceof ForbiddenError) {
       return fail<StatementView | null>(
+        "FORBIDDEN",
+        "You do not have permission to perform this action."
+      );
+    }
+    throw e;
+  }
+}
+
+// --- adjustments: manual money ledger on a draft statement -----------------
+
+/** Confirms the statement is in the caller's org and returns its status. */
+async function statementStatus(
+  statementId: string,
+  organizationId: string
+): Promise<"draft" | "finalized" | null> {
+  const [row] = await db
+    .select({ status: laytimeStatements.status })
+    .from(laytimeStatements)
+    .where(
+      and(
+        eq(laytimeStatements.id, statementId),
+        eq(laytimeStatements.organizationId, organizationId)
+      )
+    );
+  return row ? row.status : null;
+}
+
+export async function addAdjustment(
+  statementId: string,
+  input: { amount: number; reason: string }
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    return await authorized<ActionResult<{ id: string }>>(
+      "statement.recalculate",
+      async (ctx) => {
+        if (!Number.isFinite(input.amount)) {
+          return fail<{ id: string }>("VALIDATION_ERROR", "The amount must be a number.");
+        }
+        const reason = (input.reason ?? "").trim();
+        if (reason === "") {
+          return fail<{ id: string }>("VALIDATION_ERROR", "A reason is required.");
+        }
+        const status = await statementStatus(statementId, ctx.organizationId);
+        if (status === null) {
+          return fail<{ id: string }>("NOT_FOUND", "Statement not found.");
+        }
+        if (status === "finalized") {
+          return fail<{ id: string }>(
+            "INVALID_STATE",
+            "A finalized statement is locked; adjustments cannot be added."
+          );
+        }
+
+        const [row] = await db
+          .insert(laytimeAdjustments)
+          .values({
+            organizationId: ctx.organizationId,
+            statementId,
+            amount: String(input.amount),
+            reason,
+            createdByUserId: ctx.userId,
+          })
+          .returning({ id: laytimeAdjustments.id });
+
+        await recordAudit(ctx, {
+          entityType: "LaytimeAdjustment",
+          entityId: row.id,
+          action: "add",
+          after: { statementId, amount: input.amount, reason },
+        });
+        return ok({ id: row.id });
+      }
+    );
+  } catch (e) {
+    if (e instanceof ForbiddenError) {
+      return fail<{ id: string }>(
+        "FORBIDDEN",
+        "You do not have permission to perform this action."
+      );
+    }
+    throw e;
+  }
+}
+
+export async function deleteAdjustment(
+  id: string
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    return await authorized<ActionResult<{ id: string }>>(
+      "statement.recalculate",
+      async (ctx) => {
+        // Only removable while the parent statement is a draft.
+        const [adj] = await db
+          .select({ statementId: laytimeAdjustments.statementId })
+          .from(laytimeAdjustments)
+          .where(
+            and(
+              eq(laytimeAdjustments.id, id),
+              eq(laytimeAdjustments.organizationId, ctx.organizationId)
+            )
+          );
+        if (!adj) return fail<{ id: string }>("NOT_FOUND", "Adjustment not found.");
+
+        const status = await statementStatus(adj.statementId, ctx.organizationId);
+        if (status === "finalized") {
+          return fail<{ id: string }>(
+            "INVALID_STATE",
+            "A finalized statement is locked; adjustments cannot be removed."
+          );
+        }
+
+        await db
+          .delete(laytimeAdjustments)
+          .where(
+            and(
+              eq(laytimeAdjustments.id, id),
+              eq(laytimeAdjustments.organizationId, ctx.organizationId)
+            )
+          );
+        await recordAudit(ctx, {
+          entityType: "LaytimeAdjustment",
+          entityId: id,
+          action: "delete",
+        });
+        return ok({ id });
+      }
+    );
+  } catch (e) {
+    if (e instanceof ForbiddenError) {
+      return fail<{ id: string }>(
         "FORBIDDEN",
         "You do not have permission to perform this action."
       );
