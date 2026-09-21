@@ -57,34 +57,34 @@ function SummaryMetric({
 }) {
   return (
     <div
-      className="relative px-5 py-4"
-      style={{ borderLeft: primary ? "none" : "1px solid rgba(255,255,255,0.08)" }}
+      className="relative px-6 py-6"
+      style={{
+        borderLeft: primary
+          ? "3px solid var(--gold)"
+          : "1px solid rgba(255,255,255,0.08)",
+        // The primary metric sits on a faintly raised panel — depth, not glow.
+        background: primary ? "rgba(255,255,255,0.05)" : "transparent",
+      }}
     >
-      {primary && (
-        <span
-          className="absolute left-0 top-0 h-[3px] w-full"
-          style={{ background: "var(--gold)" }}
-        />
-      )}
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-3">
         <span style={{ color: primary ? "var(--gold)" : "rgba(255,255,255,0.5)" }}>
           {icon}
         </span>
         <span
-          className="text-[11.5px] uppercase tracking-wide"
+          className="text-[11px] uppercase tracking-[0.07em]"
           style={{ color: "rgba(255,255,255,0.62)" }}
         >
           {label}
         </span>
       </div>
       <div
-        className="num text-[24px] font-semibold leading-none"
+        className="num text-[30px] font-semibold leading-none"
         style={{ color: primary ? "var(--gold)" : "#ffffff" }}
       >
         {value}
       </div>
       {note && (
-        <div className="text-[11.5px] mt-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+        <div className="text-[12px] mt-2.5" style={{ color: "rgba(255,255,255,0.5)" }}>
           {note}
         </div>
       )}
@@ -110,12 +110,12 @@ export default async function PortfolioPage() {
   const totalDemurrage = stmts.reduce((sum, r) => sum + r.stmt!.demurrageTotal, 0);
   const totalNet = stmts.reduce((sum, r) => sum + r.stmt!.netClaim, 0);
 
-  const cell = "px-4 py-2.5 text-[13px]";
-  const th = "px-4 py-2 text-[11px] uppercase tracking-wide text-left";
+  const cell = "px-5 py-3 text-[13px]";
+  const th = "px-5 py-2.5 text-[11px] uppercase tracking-wide text-left";
   const muted = { color: "var(--steel)" } as const;
 
   return (
-    <div className="max-w-6xl w-full mx-auto px-8 py-8">
+    <div className="max-w-[1440px] w-full mx-auto px-6 lg:px-10 py-8">
       <PageTitle>Portfolio</PageTitle>
       <p className="text-[13px] mt-1 mb-6" style={muted}>
         {ctx.organizationName} · signed in as {ctx.userName} ({ctx.role})
@@ -134,8 +134,12 @@ export default async function PortfolioPage() {
       ) : (
         <>
           <div
-            className="rounded-lg overflow-hidden mb-6 grid grid-cols-2 md:grid-cols-4"
-            style={{ background: "var(--navy)" }}
+            className="rounded-xl overflow-hidden mb-5 grid grid-cols-2 md:grid-cols-4"
+            style={{
+              background: "var(--navy)",
+              boxShadow:
+                "0 1px 3px rgba(16,24,40,.12), 0 10px 28px rgba(10,60,66,.10)",
+            }}
           >
             <SummaryMetric
               icon={<IconVoyages />}
@@ -164,16 +168,28 @@ export default async function PortfolioPage() {
             />
           </div>
 
-          <div className="flex items-center justify-between mb-3">
-            <span className="font-display text-[15px] font-medium" style={{ color: "var(--ink)" }}>
-              Voyages
-            </span>
-            <Link href="/admin/voyages" className="text-[13px] no-underline" style={{ color: "var(--brass)" }}>
-              Manage voyages →
-            </Link>
-          </div>
-
-          <div className="rounded-lg overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--line)" }}>
+          <div
+            className="rounded-xl overflow-hidden"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              boxShadow: "0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06)",
+            }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-3.5"
+              style={{ borderBottom: "1px solid var(--line)" }}
+            >
+              <span className="font-display text-[15px] font-semibold" style={{ color: "var(--ink)" }}>
+                Voyages
+                <span className="ml-2 text-[13px] font-normal" style={muted}>
+                  {rows.length}
+                </span>
+              </span>
+              <Link href="/admin/voyages" className="text-[13px] no-underline" style={{ color: "var(--brass)" }}>
+                Manage voyages →
+              </Link>
+            </div>
             <table className="w-full border-collapse">
               <thead>
                 <tr style={{ background: "var(--bg)", color: "var(--steel)" }}>
