@@ -2,15 +2,16 @@ import Link from "next/link";
 import { authorized } from "@/lib/auth/authorized";
 import { listVoyages } from "@/lib/actions/voyages";
 import { getStatement } from "@/lib/actions/laytime-statements";
-import { PageTitle, EmptyState, KpiCard, StatusBadge } from "@/components/ui";
+import { PageTitle, EmptyState, StatusBadge } from "@/components/ui";
 import { SubmitButton } from "@/components/forms";
 import { formatAmount } from "@/lib/format";
 
 /**
  * Portfolio dashboard — the operational overview. Voyages with their statement
- * status and net claim, over a KPI band summarising the book: how many voyages
- * are active, how many statements are finalized, gross demurrage, and the net
- * claim across the book. All figures come from persisted statements.
+ * status and net claim, over a single dark summary band that reads the book at
+ * a glance: how many voyages are active, how many statements are finalized,
+ * gross demurrage, and the net claim across the book. All figures come from
+ * persisted statements.
  */
 
 function IconVoyages() {
@@ -32,6 +33,62 @@ function IconMoney() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <rect x="3" y="6" width="18" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" />
     </svg>
+  );
+}
+
+/**
+ * One metric inside the dark summary band. The band is a single coherent
+ * surface — cells are divided by hairlines, not broken into separate cards.
+ * The primary metric carries a restrained gold accent (top rule + gold icon)
+ * so the eye lands on it first without shouting.
+ */
+function SummaryMetric({
+  icon,
+  label,
+  value,
+  note,
+  primary = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  note?: string;
+  primary?: boolean;
+}) {
+  return (
+    <div
+      className="relative px-5 py-4"
+      style={{ borderLeft: primary ? "none" : "1px solid rgba(255,255,255,0.08)" }}
+    >
+      {primary && (
+        <span
+          className="absolute left-0 top-0 h-[3px] w-full"
+          style={{ background: "var(--gold)" }}
+        />
+      )}
+      <div className="flex items-center gap-2 mb-2">
+        <span style={{ color: primary ? "var(--gold)" : "rgba(255,255,255,0.5)" }}>
+          {icon}
+        </span>
+        <span
+          className="text-[11.5px] uppercase tracking-wide"
+          style={{ color: "rgba(255,255,255,0.62)" }}
+        >
+          {label}
+        </span>
+      </div>
+      <div
+        className="num text-[24px] font-semibold leading-none"
+        style={{ color: primary ? "var(--gold)" : "#ffffff" }}
+      >
+        {value}
+      </div>
+      {note && (
+        <div className="text-[11.5px] mt-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+          {note}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -76,11 +133,35 @@ export default async function PortfolioPage() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <KpiCard icon={<IconVoyages />} tone="neutral" label="Voyages" value={String(rows.length)} note={`${active} active`} />
-            <KpiCard icon={<IconDoc />} tone="teal" label="Finalized statements" value={String(finalized)} note={`of ${stmts.length} with a statement`} />
-            <KpiCard icon={<IconMoney />} tone="rust" label="Demurrage (gross)" value={formatAmount(totalDemurrage)} note="across all statements" />
-            <KpiCard icon={<IconMoney />} tone="neutral" label="Net claim (book)" value={formatAmount(totalNet)} note="demurrage − despatch + adjustments" />
+          <div
+            className="rounded-lg overflow-hidden mb-6 grid grid-cols-2 md:grid-cols-4"
+            style={{ background: "var(--navy)" }}
+          >
+            <SummaryMetric
+              icon={<IconVoyages />}
+              label="Voyages"
+              value={String(rows.length)}
+              note={`${active} active`}
+              primary
+            />
+            <SummaryMetric
+              icon={<IconDoc />}
+              label="Finalized statements"
+              value={String(finalized)}
+              note={`of ${stmts.length} with a statement`}
+            />
+            <SummaryMetric
+              icon={<IconMoney />}
+              label="Demurrage (gross)"
+              value={formatAmount(totalDemurrage)}
+              note="across all statements"
+            />
+            <SummaryMetric
+              icon={<IconMoney />}
+              label="Net claim (book)"
+              value={formatAmount(totalNet)}
+              note="demurrage − despatch + adjustments"
+            />
           </div>
 
           <div className="flex items-center justify-between mb-3">
