@@ -25,14 +25,23 @@ export type CountedLike = {
   start: Date;
   end: Date;
   treatment: "COUNTED" | "EXCLUDED";
+  /**
+   * Fraction of this interval's elapsed time that counts, in [0,1] (E4). The
+   * authoritative accumulation input. When absent (legacy/binary callers) it is
+   * derived from `treatment` — COUNTED = 1, EXCLUDED = 0 — so behaviour is
+   * unchanged; a fractional value is summed pro-rata.
+   */
+  countedFraction?: number;
 };
 
 /** Total counted time, in seconds, over a port call's intervals. */
 export function accumulateCountedSeconds(intervals: CountedLike[]): number {
   let total = 0;
   for (const iv of intervals) {
-    if (iv.treatment === "COUNTED") {
-      total += (iv.end.getTime() - iv.start.getTime()) / 1000;
+    const fraction =
+      iv.countedFraction ?? (iv.treatment === "COUNTED" ? 1 : 0);
+    if (fraction > 0) {
+      total += ((iv.end.getTime() - iv.start.getTime()) / 1000) * fraction;
     }
   }
   return total;

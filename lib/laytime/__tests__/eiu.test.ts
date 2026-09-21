@@ -4,14 +4,22 @@ import type { ClassifiedInterval } from "../classify";
 
 const D = (iso: string) => new Date(iso);
 
-const iv = (over: Partial<ClassifiedInterval> = {}): ClassifiedInterval => ({
-  start: D("2026-06-14T08:00:00Z"),
-  end: D("2026-06-14T10:00:00Z"),
-  treatment: "EXCLUDED",
-  eiuRelevant: true,
-  reasons: ["EXCLUDED_WEEKDAY"],
-  ...over,
-});
+const iv = (over: Partial<ClassifiedInterval> = {}): ClassifiedInterval => {
+  const base: ClassifiedInterval = {
+    start: D("2026-06-14T08:00:00Z"),
+    end: D("2026-06-14T10:00:00Z"),
+    treatment: "EXCLUDED",
+    countedFraction: 0,
+    eiuRelevant: true,
+    reasons: ["EXCLUDED_WEEKDAY"],
+    ...over,
+  };
+  // Keep the coarse fraction consistent with treatment unless overridden.
+  if (over.countedFraction === undefined) {
+    base.countedFraction = base.treatment === "COUNTED" ? 1 : 0;
+  }
+  return base;
+};
 
 const never = () => false;
 const always = () => true;

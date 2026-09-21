@@ -16,6 +16,31 @@ const seg = (h0: number, h1: number, treatment: "COUNTED" | "EXCLUDED"): Counted
   treatment,
 });
 
+describe("accumulateCountedSeconds — fractional counting (E4)", () => {
+  it("sums a partial interval pro-rata by its countedFraction", () => {
+    const total = accumulateCountedSeconds([
+      { start: D("2026-06-14T08:00:00Z"), end: D("2026-06-14T12:00:00Z"), treatment: "COUNTED", countedFraction: 0.5 }, // 4h @ 50% = 2h
+      { start: D("2026-06-14T12:00:00Z"), end: D("2026-06-14T14:00:00Z"), treatment: "COUNTED", countedFraction: 1 },   // 2h
+    ]);
+    expect(total).toBe(4 * HOUR);
+  });
+
+  it("derives the fraction from treatment when it is absent (binary/legacy)", () => {
+    const total = accumulateCountedSeconds([
+      seg(8, 10, "COUNTED"),   // 2h → fraction 1
+      seg(10, 12, "EXCLUDED"), // → fraction 0
+    ]);
+    expect(total).toBe(2 * HOUR);
+  });
+
+  it("a zero fraction contributes nothing", () => {
+    const total = accumulateCountedSeconds([
+      { start: D("2026-06-14T08:00:00Z"), end: D("2026-06-14T12:00:00Z"), treatment: "EXCLUDED", countedFraction: 0 },
+    ]);
+    expect(total).toBe(0);
+  });
+});
+
 describe("accumulateCountedSeconds", () => {
   it("sums only COUNTED intervals", () => {
     const total = accumulateCountedSeconds([

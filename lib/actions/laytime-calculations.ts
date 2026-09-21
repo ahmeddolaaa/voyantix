@@ -197,6 +197,7 @@ export async function recalculatePortCall(
             startTime: iv.start,
             endTime: iv.end,
             treatment: iv.treatment,
+            countedFraction: String(iv.countedFraction),
             reasons: iv.reasons,
           }));
           const inserted = intervalRows.length
@@ -280,6 +281,7 @@ export type PersistedInterval = {
   start: Date;
   end: Date;
   treatment: "COUNTED" | "EXCLUDED";
+  countedFraction: number;
   reasons: string[];
 };
 
@@ -322,6 +324,7 @@ export async function getPortCallCalculation(
             start: laytimeIntervals.startTime,
             end: laytimeIntervals.endTime,
             treatment: laytimeIntervals.treatment,
+            countedFraction: laytimeIntervals.countedFraction,
             reasons: laytimeIntervals.reasons,
           })
           .from(laytimeIntervals)
@@ -356,6 +359,7 @@ export async function getPortCallCalculation(
             start: r.start,
             end: r.end,
             treatment: r.treatment,
+            countedFraction: Number(r.countedFraction),
             reasons: r.reasons,
           })),
         });

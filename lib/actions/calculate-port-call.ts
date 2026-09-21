@@ -25,6 +25,7 @@ export type CalculatedTimesheetInterval = {
   start: Date;
   end: Date;
   treatment: ClassifiedInterval["treatment"];
+  countedFraction: number;
   reasons: string[];
 };
 
@@ -86,6 +87,7 @@ export async function calculatePortCall(
               start: i.start,
               end: i.end,
               treatment: i.treatment,
+              countedFraction: i.countedFraction,
               reasons: i.reasons,
             })),
           });

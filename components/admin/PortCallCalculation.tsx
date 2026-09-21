@@ -229,9 +229,15 @@ export function PortCallCalculation({
                       </span>
                       <span className="inline-flex items-center gap-2">
                         <span style={{ color: "var(--ink-soft)" }}>{reasonText(iv.reasons)}</span>
-                        <StatusBadge tone={iv.treatment === "COUNTED" ? "teal" : "neutral"}>
-                          {iv.treatment === "COUNTED" ? "Counted" : "Excluded"}
-                        </StatusBadge>
+                        {iv.countedFraction >= 1 ? (
+                          <StatusBadge tone="teal">Counted</StatusBadge>
+                        ) : iv.countedFraction <= 0 ? (
+                          <StatusBadge tone="neutral">Excluded</StatusBadge>
+                        ) : (
+                          <StatusBadge tone="brass">
+                            Counted {Math.round(iv.countedFraction * 100)}%
+                          </StatusBadge>
+                        )}
                       </span>
                     </div>
                   ))}

@@ -163,6 +163,11 @@ export const laytimeIntervals = pgTable(
     startTime: timestamp("start_time", { withTimezone: true }).notNull(),
     endTime: timestamp("end_time", { withTimezone: true }).notNull(),
     treatment: laytimeIntervalTreatmentEnum("treatment").notNull(),
+    // Authoritative counted contribution: a fraction in [0,1] of the interval's
+    // elapsed time (E4). `treatment` is its coarse view; today only 0/1 are
+    // written. Defaulted to 1 so any legacy row is well-formed; the
+    // recalculation path always writes the real value.
+    countedFraction: numeric("counted_fraction").notNull().default("1"),
     reasons: text("reasons").array().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
