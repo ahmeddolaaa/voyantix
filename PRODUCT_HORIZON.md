@@ -71,6 +71,7 @@ full behaviour/semantics can be settled later.
 - **Target:** Phase 8/9 boundary (engine representation hardening).
 
 ### AN-2 · Cumulative-state treatment ("once on demurrage, always on demurrage")
+- **STATUS 2026-09-23: CLOSED** — implemented as `lib/laytime/demurrage-state.ts` (post-EIU stage, per-term flag `once_on_demurrage`, per-stoppage-reason exceptions `excluded_on_demurrage`), evidenced by MY FELLAS loading/discharge and MV YUFIX; golden test reproduces MY FELLAS loading exactly. Notes below are the original finding.
 - **Category:** B (a cumulative re-treatment stage) + A (the rule itself — withheld).
 - **Finding:** the pipeline classifies each interval **independently** of
   cumulative position, then sums. OODAOD and similar rules make an interval's
@@ -116,7 +117,7 @@ full behaviour/semantics can be settled later.
 | Capability | Cat | Why / primary user | Status | Deps | Blocks now | Target |
 |---|---|---|---|---|---|---|
 | Fractional interval counting (AN-1) | B(done)+A | real CPs count periods at a fraction · analyst | ✅ representation done; semantic withheld | — | no | done 2026-09-21 |
-| Cumulative-state treatment / OODAOD (AN-2) | B+A | common CP rule · analyst | not modelled | accumulate stage | no | Ph9 |
+| Cumulative-state treatment / OODAOD (AN-2) | B+A | common CP rule · analyst | ✅ built 2026-09-23 | post-EIU stage | no | done |
 | Currency capture + aggregation (AN-3) | C+B | correct money across a book · commercial | missing | contract/term field | no | Ph9 pre-req |
 | SOF / document ingestion → reviewable timeline | B | capture facts fast & defensibly · operator/analyst | not built | doc model, review UI | no | Beta |
 | Evidence attachment + provenance (AN-4) | B | defensible claims · analyst | not built | doc model | no | Ph9/Beta |

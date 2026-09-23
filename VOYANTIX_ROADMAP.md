@@ -19,34 +19,87 @@
 
 ---
 
-## CURRENT STATE
+## CURRENT STATE  (updated 2026-09-23 — read this first)
 
-- **Repo:** `github.com/ahmeddolaaa/voyantix` — local branch `main` tracks `origin/rebuild`. Push form: `git push origin main:rebuild`.
-- **Work folder:** `/workspaces/voyantix/voyantix` (nested). Runs in GitHub Codespaces.
-- **Latest commit:** `8e97587` (rebuild HEAD). Phases 1–5 complete, backend + UI, all browser-verified.
-- **Stack:** Next.js 16.3.3 · React 19.2.8 · Drizzle ORM · PostgreSQL. Turbopack (`next dev`).
-- **DB:** `postgresql://voyantix:voyantix@127.0.0.1:5432/voyantix_dev` (default in code; no real `.env`). - **Migrations applied:** `0000`–`0008` (through `0008`, the Phase 5 operational layer). No schema drift.
-- **Schema files:** `db/schema/platform.ts` (Phase 1), `db/schema/master-data.ts` (Phase 2).
-- **Login:** `admin@demo.test` / `voyantix`.
+> This section was rewritten on 2026-09-23 at the end of a very long session
+> whose early context had been summarised. Everything below was checked
+> against the actual repo, not memory. Older state notes are kept further
+> down in the DECISION LOG for history.
 
-### Completed
-- **Phase 1 ✅** — Auth, Membership, Session, Roles, Tenancy, Authorization. 23 tests (Phase 1) + full suite green (69 tests total as of Event Types).
-- **Phase 2 ✅** — Master Data complete. Schema (8 tables, composite FKs, CHECK constraints), shared foundations (forms, ui, DataTable, TimezoneCombobox), and every admin screen: Ports · Facilities · Vessels · Cargo · Stoppage Reasons · Holiday Calendars · **Event Types** (the final Phase 2 screen — action + 12 tests + UI, browser-verified).
-- **Phase 4 ✅** — Operational spine complete. `voyages` (reference generated from CompanyConfiguration pattern via ReferenceSequence, manual override supported) · `voyage_port_calls` (effectiveTimezone snapshotted per F28; unique sequence per voyage per PO10) · `cargo_plans`. PO11 term resolution implemented in full with all seven states distinguishable. Migrations `0005`–`0007`. 65 tests (17 + 24 + 24); full suite 195 green. Voyages list + voyage detail screens browser-verified end to end.
-- **CompanyConfiguration + ReferenceSequence ✅** — implemented inside `platform.ts` (not a separate file), migrated and live in the database as of `0004_colorful_major_mapleleaf`. Fields as actually implemented: `voyageReferencePattern` (text, NOT NULL, default `"VOY-{YY}{SEQ:4}"`), `defaultTimezone` (text, NOT NULL, default `"UTC"`, application/display only per F28), `defaultExcludedWeekdays` (**jsonb**, not integer[] — intentional deviation from the `laytimeRuleSetVersions` array convention, kept as-is since already migrated), no `defaultHolidayCalendarId` column exists. `referenceSequences`: `organizationId` + `scope` + `nextValue`, unique per (org, scope), transactional counter. This predates/parallels this session's Phase 4 planning and was discovered only via direct repo inspection — the roadmap had not been updated to reflect it.
-- **Phase 5 ✅** — Operational layer complete (backend). `operational_events` (append-only; corrections supersede, business fields immutable) · `stoppages` (EXCLUDE constraint `stoppages_no_overlap` via btree_gist enforces both no-overlap and one-open-per-port-call) · `shift_performances` (F24: no countability authority). Migration `0008`. UI complete and browser-verified: events (append-only, corrections show the superseded row struck through), stoppages (one-open-per-port-call rejected with a clear message), and shift performance (cargo list scoped to the port call's plans). Full suite 248 green.
+### Where things live
+- **Repo:** `github.com/ahmeddolaaa/voyantix`, branch **`rebuild`** (the only working branch; `main` is an old checkpoint `7abb42a`).
+- **Latest commit:** `8457d9a` — full suite **459 tests green**, typecheck clean.
+- **Stack:** Next.js 16.3.3 (Turbopack) · React 19.2.8 · Drizzle ORM · PostgreSQL 16 · Vitest · tsx. Node ≥ 20.
+- **Migrations:** `0000`–`0018` (19 files). Latest three: `0016` term `once_on_demurrage`, `0017` stoppage-rule `excluded_on_demurrage`, `0018` term `commencement_time_rule`.
+- **Production:** Railway — `https://voyantix-production.up.railway.app`, managed Postgres, deploys automatically from `origin/rebuild`. The start command (set in the Railway UI, not in the repo) runs `db:migrate`, then `db:bootstrap`, then `next start`. After a deploy, hard-refresh (Ctrl+Shift+R) — the browser cache has shown the old UI before.
+- **Login (demo):** `admin@demo.test` / `voyantix` — org "Demo Shipping Co." (slug `demo-shipping`).
 
-### Currently next
-- **Phase 6 — Laytime Engine.** The old mandatory "2–3 charterparties" entry gate is SUPERSEDED by the product-positioning methodology (see the risk-gate section at the end of this file): reference charterparties DISCOVER capabilities; customer values stay customer configuration; the engine reads configuration and never branches on identity. Phase 6 proceeds per-step when the semantics that step needs are sufficiently defined, and pauses only if a step hits a genuinely undefined commercial semantic. E4 (partial/fractional counting) is confirmed as a real capability and touches the engine's own output contract (an interval carries a counting fraction, not a binary flag), so its representation must be settled before the engine's classification step is written. Phases 1–5 are complete, backend and UI, browser-verified, 248 tests green. The dense operational dashboard remains Phase 8 work. **UPDATE 2026-09-20:** the pure calculation engine now exists as `lib/laytime/` (timezone math, partition, calendar/working-day/event classification, commencement, turn time, classify, EIU, accumulate, pool, and the `calculateFromEvents` entry point) — 108 unit tests green, typecheck clean, no DB. It stops at the balance (F16); settlement and persistence are Phase 7. It REFUSES rather than guessing on every undefined semantic. Not yet wired to an action layer or persisted.
-- Still deferred: ContractLaytimeTerm term-versioning + finalized-statement trigger (F14) → Phase 7 (PO7).
+### How code reaches production (Adel's workflow — keep it exactly like this)
+Claude works in its own sandbox and cannot push. Delivery is a **git bundle**:
+1. Claude: `git bundle create voyantix-X.bundle <base>..rebuild` and sends the file.
+2. Adel uploads it to **Google Cloud Shell**. The upload lands in the home folder or in `~/voyantix-1/...` depending on the session — locate it with `find ~ -name "voyantix-X.bundle"`.
+3. Adel runs, in **`~/voyantix`** (the real repo, on `rebuild`):
+   ```
+   cd ~/voyantix
+   git fetch <path-to-bundle> refs/heads/rebuild
+   git merge --ff-only FETCH_HEAD
+   git push origin rebuild
+   ```
+4. Railway redeploys. `~/voyantix-1/voyantix` is an OLD clone on `main` used only as an upload drop folder — never push from it.
+- The `<base>` of each bundle must be a commit Adel already has; check with `git log --oneline -1` in `~/voyantix`.
+
+### What the product does today (all browser-verified)
+- **Platform/master data/commercial/operational layers (Phases 1–5)** — complete.
+- **Laytime engine (`lib/laytime/`)** — pure, deterministic, refuses rather than guessing. Pipeline: commencement (+ time-of-day rule / turn time) → window → partition at local days → tag stoppages/weather → calendar classify → EIU → **once-on-demurrage stage** → accumulate → balance → settlement.
+- **Calculation + statement layer (Phase 7)** — persisted calculations with interval time-sheet, statements (draft/finalized), adjustments, F14 term versioning.
+- **Professional UI (Phase 8)** — enterprise redesign, portfolio, voyage detail two-column workspace, printable statement, SOF-style timeline.
+- **SOF ingestion (differentiator, slices 1–2)** — `docs/SOF_INGESTION.md`. Extraction schema, fully editable review screen, and commit-to-port-call. Currently **fixture-driven** (`lib/ingestion/fixtures/my-fellas-loading.extraction.json`); the vision-LLM call itself is NOT wired yet. Reached from a port call via "Import from SOF".
+- **Built 2026-09-23:**
+  - **Rate-based allowance** — term `allowanceBasis` FIXED | RATE; RATE = actual cargo MT ÷ rate (MT/day). Refuses if no actual quantity.
+  - **Live provisional laytime status** — for ACTIVE port calls: time to demurrage (or time over), used-vs-allowed meter coloured by zone, planned-quantity basis labelled PROVISIONAL. Server recomputes every 30 s; only the port clock ticks client-side. Reference only, never the settlement.
+  - **Once on demurrage, always on demurrage (AN-2)** — term flag. After the exact expiry instant, excluded days, holidays and stoppages stop interrupting time. **Exceptions** per stoppage reason ("still excluded on demurrage", e.g. breakdown of vessel). Calendar exceptions cannot be excepted (all references lift them).
+  - **Stoppage rules screen** — per contract term ("Stoppage rules" button). Before this, NO UI existed, so any calc meeting an un-seeded stoppage reason was refused.
+  - **Bounded term fields** — commencement event, commencement time rule, turn-time trigger, allowance unit, despatch basis are dropdowns from `lib/laytime/term-vocabulary.ts`; the server validates against the same list.
+  - **Commencement time rule in UI** — `MORNING_NOR_1400`: event before 12:00 local → laytime 14:00 same day. Mutually exclusive with turn time.
+  - **Fixes:** term versioning now copies stoppage rules to the new version (they were silently dropped); terms list shows the new version after editing a frozen term.
+
+### Contract semantics learned from Adel's reference documents
+Source files (uploaded 2026-09): MY FELLAS NOR/SOF loading, MY FELLAS laytime calc loading + discharge, MV YUFIX i-Magellan calc, SOF_0001, departure document, and four i-Magellan timesheets (test_1–4). Each rule below is **evidence**, not invention; customer VALUES stay configuration.
+- **Rate allowance:** "3000 MT PWWD FSHEX EIU" → allowed = cargo ÷ rate (3052.403 / 3000 = 1.017468 days = 1d 00h 25m). Golden-tested.
+- **Commencement 12:00/14:00:** "If NOR before 12:00 → time counts 14:00 same day" (MV YUFIX; MY FELLAS NOR accepted 08:00 → laytime 14:00).
+- **Once on demurrage:** MY FELLAS loading + discharge and MV YUFIX count every period after expiry at 100%, including Fri/weekend exceptions and all SOF stoppages (labour breaks, port closure, Friday prayer). Golden test reproduces MY FELLAS loading exactly: used 4d 21h 15m, 3.867949 days demurrage, expiry Wed 24/06 14:25.
+- **Other CP pattern (test_1–4):** NOR tendered any time → **NOR accepted next working day 08:00** → 24 h turn time → counting. Weekend Thu 14:00 → Sun 08:00 not to count; shifting to berth / master's instruction / bad weather not to count. Already expressible: commences from NOR accepted + turn time 24 h from NOR accepted.
+- **Non-reversible** laytime per port (MY FELLAS, YUFIX). Despatch basis **WTS** (working time saved).
+
+### OPEN ITEMS — pick up here (in this order unless Adel says otherwise)
+1. **NOR after 12:00 under the 12:00/14:00 rule** — currently REFUSED (`COMMENCEMENT_AFTER_NOON_UNDEFINED`). Adel says the answer was extracted from a charter party in an earlier part of the 2026-09-23 conversation, but that part was lost to summarisation and the clause is not in any uploaded file. **Ask Adel once for the clause text, then implement** (`lib/laytime/commencement.ts` `applyCommencementTimeRule`).
+2. **Overlapping stoppages in real SOFs** — MY FELLAS SOF records a port closure (25/06 20:00–26/06 01:00) with a labour break (21:55–23:20) inside it. The DB forbids overlapping stoppages (`stoppages_no_overlap`), so committing that SOF from the ingestion review will fail on those rows. Needs a product decision on representation (e.g. split/merge on commit, or allow overlap with a precedence rule).
+3. **Despatch calculation** — `lib/laytime/settlement.ts` still refuses any despatch (`DESPATCH_BASIS_WITHHELD`). Basis can now be stored (WTS/ATS); WTS computation not built. test_2 has a real despatch example (3d 11h 26m saved × $4,375 → $15,211.76).
+4. **Vision-LLM extraction** for SOF ingestion (Gemini: free tier trains on data → paid no-training tier for real customer documents). Review screen + commit already exist.
+5. **Input timezone** — `datetime-local` inputs still mean browser time, not port time (see Monitored issues).
+6. Still withheld: weather counting (B3/WWD), CountsAgainstOwner stoppages, pooled settlement rate (B7), B6/B9 reporting.
+
+### Working agreement with Adel (standing instructions)
+- Reply in **Egyptian Arabic**; all code, comments, file names, commit messages in **English**.
+- One step at a time; don't stop except for a genuinely blocking question; don't ask technical questions inside Claude's own job — decide and proceed.
+- Never invent contract semantics — derive from Adel's documents, otherwise refuse and ask.
+- Never claim something works before verifying it in the browser/runtime (Playwright against the dev server), not just typecheck/tests.
+- Don't reopen frozen decisions; push back once, then respect his call. No harsh or lecturing tone; own mistakes directly.
+
+### Sandbox notes (for Claude)
+- Repo at `/tmp/voyantix`; dev DB `postgresql://voyantix:voyantix@127.0.0.1:5432/voyantix_dev` (`pg_ctlcluster 16 main start`; run `npm run db:migrate` after pulling migrations — tests fail on missing columns otherwise).
+- Dev server: `DATABASE_URL=... setsid nohup npx next dev -p 3000 &` (never `pkill -f "next dev"` from the same shell — it kills the shell).
+- Playwright: `/home/claude/.npm-global/lib/node_modules/playwright`, Chromium `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. Required-field labels contain `*`, so use non-exact `getByLabel`.
+- React 19: state set inside `startTransition(async …)` is not committed until the action finishes — do optimistic updates BEFORE `startTransition`.
+
 ### Verification ladder (never conflate these)
-`implemented` → `typechecked (tsc --noEmit)` → `tested (vitest on PostgreSQL)` → `browser/runtime verified`. Phase 2 reached the top rung. Nothing in Phase 3+ is verified yet.
+`implemented` → `typechecked (tsc --noEmit)` → `tested (vitest on PostgreSQL)` → `browser/runtime verified`.
 
 ### Monitored / deferred issues
-- **Next.js #668 "Router action dispatched before initialization"** — intermittent, not currently reproducing; not fixed, just not present. Diagnose live if it returns.
-- **Deferred (Phase 2 residue):** when an org-creation flow is built (part of a later admin/onboarding scope), it MUST call `seedProtectedEventTypes(org.id)` inside the creation transaction, or new orgs ship without the 8 protected event types and the engine cannot resolve. The function is idempotent and ready; nothing calls it except `scripts/bootstrap.ts` today.
-- **Input timezone semantics (deferred).** Operational time DISPLAY now renders in the port call's `effectiveTimezone` via the shared `lib/format.ts` `formatInstant(date, timeZone)` (commit `8e97587`). The INPUT path is deliberately unchanged: `toInputValue` and the `datetime-local` fields still read/write in the browser's local zone, so a user entering "0800" is storing 0800 browser-time, not 0800 port-time. Correcting input to mean local PORT time (with a clear UX signal) is a separate future task; not blocking, but required before the entered wall-clock can be trusted to match the SOF for a port in a different zone.
-- **`tsconfig.tsbuildinfo`** — build cache, keeps appearing as modified; never commit it (belongs in `.gitignore`, unverified).
+- **Next.js #668 "Router action dispatched before initialization"** — intermittent, not currently reproducing.
+- **Org creation must seed protected event types** — `seedProtectedEventTypes(org.id)` inside the creation transaction; today only `scripts/bootstrap.ts` calls it.
+- **Input timezone semantics (deferred).** Display uses the port call's `effectiveTimezone`; `datetime-local` INPUT still uses the browser zone. Must be fixed before entered wall-clock times can be trusted for a port in another zone.
+- **`tsconfig.tsbuildinfo`** — build cache; keeps appearing modified.
 
 ---
 
@@ -102,7 +155,7 @@
 **Exit criteria:** all commercial entities exist, are tenant-scoped, versioning works, resolver behaves per the three cases, tests green on PostgreSQL, CRUD usable in browser.
 **Next dependency:** Phase 4 consumes `contractId` / resolved `contractLaytimeTermId` on PortCall.
 
-## Phase 4 — Voyage + PortCall · ⏳ FUTURE · OFFICIAL
+## Phase 4 — Voyage + PortCall · ✅ COMPLETE · OFFICIAL
 **Purpose:** the operational spine — a voyage visiting one or more port calls, each anchored in real local time.
 **Entities:** `Voyage` (`voyageReference` unique per org, `vesselName` text required, `vesselId?`, `contractId?`, `status`) — loses `portId`/`arrivalTime`/`norTender`/`norAcceptance`/`sailingTime` (all become port-call facts). `VoyagePortCall` (`voyageId`, `portId`, `facilityId?`, `function` LOAD/DISCHARGE, `sequence`, `status`, **`effectiveTimezone`**, `contractLaytimeTermId?`). `CargoPlan` re-parented to `portCallId`.
 **Depends on:** Phase 3 (contract/term to resolve onto a port call), Phase 2 (ports/facilities).
@@ -110,14 +163,14 @@
 **Must NOT include:** operational events/stoppages (Phase 5); any calculation.
 **Exit criteria:** voyage + multi-port-call model persists, effectiveTimezone captured per call, backfill safe, tests green.
 
-## Phase 5 — Operational · ⏳ FUTURE · OFFICIAL
+## Phase 5 — Operational · ✅ COMPLETE · OFFICIAL
 **Purpose:** record what actually happened at each port call.
 **Entities:** `OperationalEvent` (point-in-time; `portCallId`, `eventTypeId`, `occurredAt`, `recordedAt`, `recordedByUserId`, `supersededByEventId?`; append-only, corrections supersede). `Stoppage` (time span; overlap + one-open rules). `ShiftPerformance` (throughput; `shiftDate` NOT NULL; **never affects countability**).
 **Depends on:** Phase 4 (everything hangs off `portCallId`), Phase 2 (event types, stoppage reasons).
 **Must NOT include:** any calculation; ShiftPerformance must never feed countability.
 **Exit criteria:** events/stoppages/shifts persist against port calls with their integrity rules, tests green.
 
-## Phase 6 — Laytime Engine rebuild · ⏳ FUTURE · OFFICIAL · 🛑 B1–B5, B8
+## Phase 6 — Laytime Engine rebuild · ✅ BUILT (remaining withheld semantics refuse) · OFFICIAL · 🛑 B3–B5, B8
 **Purpose:** the composable calculation engine — a pure function, no DB access, producing a *balance* (not an amount).
 **Model:** composable axes, never `switch(termLabel)`. Pipeline: resolve scope → determine commencement (🛑B1) → apply turn time (🛑B2) → candidate window → partition (weekday/holiday/stoppage/weather/allowance/midnight boundaries, LOCAL time) → classify → apply EIU → accumulate per port call → pool (reversible) → saved/exceeded. **Engine stops at the balance; no rates.**
 **Depends on:** Phases 3–5 (terms, port calls, events).
@@ -125,7 +178,7 @@
 **Pre-req risk gate:** validate the composable rule model against 2–3 real charterparties before building this phase.
 **Must NOT include:** rates/settlement (Phase 7); persistence beyond the pure function's output contract.
 
-## Phase 7 — Calculation + Statement persistence · 🔄 BACKEND COMPLETE (UI → Phase 8) · OFFICIAL · 🛑 B7
+## Phase 7 — Calculation + Statement persistence · ✅ COMPLETE (despatch settlement still refused) · OFFICIAL · 🛑 B7
 **Purpose:** run the engine, persist the truth, produce the settlement amount and the statement.
 **Status (2026-09-21):** all backend entities, actions and settlement built and tested against real PostgreSQL (422 tests). LaytimeAdjustment is now actually built (the earlier "table exists" note was wrong). Lifecycle invariants are DB-enforced. Only the calculation/statement UI remains — deferred to Phase 8 (Professional UX) per the product owner.
 **Entities:** `LaytimeCalculation` (one run + `resolvedRulesJson` snapshot + `engineVersion`) ✅. `LaytimeInterval` (**the single source of calculation truth**) + `LaytimeIntervalStoppageLink` ✅. `LaytimeStatement` (voyage-level lifecycle) ✅. `StatementScopeResult` (per port call ✅; per pool reserved, B7-withheld, never emitted). `LaytimeAdjustment` ✅ built (signed money ledger on a draft; approval workflow still deferred). **No `TimeSheetEntry` table** — the time sheet is a query over `LaytimeInterval`.
@@ -193,8 +246,8 @@ The identifiers and their target phase are known; their **semantics are delibera
 
 | # | Rule (identity only) | Belongs to | Data structure that must exist first |
 |---|---|---|---|
-| B1 | Commencement basis | Phase 6 | `ContractLaytimeTerm.commencementRule` + operational events |
-| B2 | Turn time trigger/semantics | Phase 6 | `turnTimeHours?` / `turnTimeTrigger?` on term |
+| B1 | Commencement basis | Phase 6 | ✅ bounded event dropdown + `commencementTimeRule` (AT_EVENT / MORNING_NOR_1400). NOR after 12:00 under the 14:00 rule still refused — see OPEN ITEMS |
+| B2 | Turn time trigger/semantics | Phase 6 | ✅ hours + trigger event (bounded); exclusive with the 14:00 rule |
 | B3 | WWD weather determination | Phase 6 | `weatherApplies` on RuleSetVersion; weather events |
 | B4 | Holiday precedence (port calendar vs contract list) | Phase 6 | HolidayCalendar + RuleSetVersion.holidayCalendarId |
 | B5 | SHEX weekday convention | Phase 6 | `excludedWeekdays[]` on RuleSetVersion (data, not hardcoded) |
@@ -261,6 +314,15 @@ Cross-checked against handoff, architecture, frozen decisions, prior implementat
 | 2026-09-21 | F14 term versioning CLOSED (migration 0013) — the last open, now-unblocked backend item. `contract_laytime_terms` gains `versionNumber` + self-referencing `supersededByTermId`. `updateContractLaytimeTerm` branches: no finalized-statement dependency → in-place edit; a finalized statement depends on it (finalized statement → voyage port call → calculation.termId) → freeze: in one transaction create a new version with the edits, mark the old row superseded (left intact for the finalized statement's basis), and repoint every live port call to the new version. Superseded rows can't be edited directly (INVALID_STATE) and aren't listed. Mirrors the accepted F13 rule-set model; adds structural F20 protection on top of resolvedRulesJson. Verified a finalized statement's demurrage figure is unchanged after versioning. 425 tests green (40 files), typecheck clean. **Backend is now complete through Phase 7** — remaining work is Phase 8 (UI) and the withheld semantics (B1–B9 + engine-level refusals) that need real charterparty evidence. | This session | 3/7 | milestone | Backend complete; next is Phase 8 UI (browser-verified) when the product owner is ready |
 | 2026-09-21 | Phase 8 major UI delivered, each BROWSER-VERIFIED with Playwright against a running dev server (login as admin@demo.test, real clicks, screenshots) and validated by a clean production `next build` (all 20 routes compile). Built: (1) `PortCallCalculation` — Recalculate → persisted balance/window/settlement + expandable interval time-sheet, refusals shown as first-class outcomes; (2) `VoyageStatement` — build/rebuild draft, per-port-call scope rollup, adjustments ledger, net claim, finalize; (3) `StatementDocument` + `/admin/voyages/[id]/statement` — a print-ready demurrage statement (per-call breakdown, totals, Print/Save-PDF; `.no-print` + `@media print` drop the app chrome); (4) `PortCallTimeline` — SOF-style chronological events + stoppage commenced/ceased marks in port-local time with elapsed gaps; (5) portfolio dashboard — KPI band + voyages table with statement status and net claim. Added `formatDurationSeconds` + `formatAmount`. End-to-end sanity: a seeded voyage priced to Demurrage 13,000 (26h over @ 12,000/day), a −3,000 adjustment → Net claim 10,000, finalized and rendered as a document. 425 backend tests still green; typecheck clean; production build clean. **Verification method now proven in-sandbox** (Chromium + Playwright driving `next dev`), so future UI is browser-verifiable here. Remaining Phase 8 is open-ended polish only. | This session | 8 | milestone | Phase 8 major items done; next: optional UX polish, or Phases 9–10 / withheld semantics when charterparty evidence arrives |
 | 2026-09-21 | Adopted PRODUCT ARCHITECT + DOMAIN ARCHITECT operating mode; added `PRODUCT_HORIZON.md` (living capability register, four-category classification, Architecture-Now watchlist). First action from it: **AN-1 (E4 fractional counting) representation CLOSED** — the roadmap had required an interval to carry a counting fraction (0..1) settled before classification, but the engine shipped binary (`COUNTED|EXCLUDED`). Introduced `ClassifiedInterval.countedFraction` (authoritative; `treatment` is its coarse view), accumulation sums `elapsed × fraction`, persisted `laytime_intervals.counted_fraction` (migration 0014, backfilled), fraction-aware time-sheet badge. Behaviour identical today (0/1 only); NO trigger/percentage/precedence invented (still Category A, withheld). 428 tests green, typecheck clean, browser-verified Demurrage 13,000 unchanged. | This session | 6/7/8 | milestone | Engine output contract is now partial-counting-ready; AN-2 (cumulative/OODAOD) and AN-3 (currency) remain on the watchlist for their target phases |
+| 2026-09-21 | Deployed to Railway (managed Postgres, always-on) from `origin/rebuild`; TLS-aware pool, tsx as runtime dep (`0ead2e4`). Live at voyantix-production.up.railway.app | Session | Deploy | milestone | Production exists; delivery via git bundle → Cloud Shell → push |
+| 2026-09-22 | Product strategy: the deterministic engine is the trust foundation; SOF ingestion (vision-LLM + human review) is the differentiator. Ingestion slices 1–2 built (schema, editable review, commit-to-port-call), fixture-driven | Product Owner | 8+ | frozen | `docs/SOF_INGESTION.md` |
+| 2026-09-22 | Commencement time-of-day rule MORNING_NOR_1400 in the engine (`87e9619`), from reference docs | Adel's documents | 6 | milestone | Exposed in the UI on 2026-09-23 |
+| 2026-09-23 | Rate-based allowance (`1bcadca`, migration 0015): allowed = actual MT ÷ MT/day; refuses without actual quantity | Adel's documents | 6/7 | milestone | Golden: 3052.403/3000 → 87909.2064 s |
+| 2026-09-23 | Live provisional status (`3994379`, `81038e8`): reference-only running meter for ACTIVE port calls, planned qty until actual exists, window end = now | Product Owner request | 8 | milestone | Not the settlement; labelled PROVISIONAL |
+| 2026-09-23 | AN-2 CLOSED — once on demurrage, always on demurrage + per-stoppage-reason exceptions (`95d6238`, migrations 0016–0017). Stoppage rules UI added (none existed). Fix: term versioning now copies stoppage rules | Adel's documents + PO request | 6/7/8 | milestone | Golden test reproduces MY FELLAS loading exactly |
+| 2026-09-23 | Bounded term vocabulary (`8457d9a`, migration 0018): commencement event, commencement time rule, turn-time trigger, allowance unit, despatch basis are dropdowns validated server-side | Self-audit | 3/8 | milestone | Free text the engine would refuse is rejected at save |
+| 2026-09-23 | Session context was summarised once; the NOR-after-12:00 clause Adel had given was lost. Roadmap CURRENT STATE rewritten as the handoff so a fresh session starts from the repo, not memory | Session | — | process | Start the next session by reading CURRENT STATE |
+
 ---
 
 # ROADMAP MAINTENANCE POLICY
