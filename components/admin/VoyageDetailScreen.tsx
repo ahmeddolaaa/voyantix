@@ -617,6 +617,17 @@ export function VoyageDetailScreen({
                 </div>
 
                 <div className="inline-flex gap-2 items-center">
+                  <Link
+                    href={`/admin/ingest-preview?portCall=${c.id}&voyage=${voyageId}`}
+                    className="px-2.5 py-1 text-[12px] rounded no-underline inline-flex items-center"
+                    style={{
+                      background: "var(--gold-soft)",
+                      color: "var(--brass)",
+                      border: "1px solid var(--gold)",
+                    }}
+                  >
+                    Import from SOF
+                  </Link>
                   <SecondaryButton
                     onClick={() => openEditCall(c)}
                     disabled={pending}

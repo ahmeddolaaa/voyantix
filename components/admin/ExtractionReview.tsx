@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState, useTransition } from "react";
 import type {
   SofExtraction,
   ExtractedEvent,
@@ -8,6 +9,10 @@ import type {
   LaytimeEventType,
   StoppageCategory,
 } from "@/lib/ingestion/schema";
+import {
+  commitExtraction,
+  type CommitSummary,
+} from "@/lib/actions/commit-extraction";
 import {
   Card,
   PageTitle,
@@ -176,7 +181,16 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function ExtractionReview({ extraction }: { extraction: SofExtraction }) {
+export function ExtractionReview({
+  extraction,
+  portCallId,
+  voyageId,
+}: {
+  extraction: SofExtraction;
+  /** When present, Commit writes to this port call; otherwise it is a preview. */
+  portCallId?: string;
+  voyageId?: string;
+}) {
   const [events, setEvents] = useState<EventRow[]>(
     extraction.events.map((e) => ({ ...e, included: true, origin: "ai" }))
   );
@@ -184,6 +198,38 @@ export function ExtractionReview({ extraction }: { extraction: SofExtraction }) 
     extraction.stoppages.map((s) => ({ ...s, included: true, origin: "ai" }))
   );
   const [committed, setCommitted] = useState(false);
+  const [summary, setSummary] = useState<CommitSummary | null>(null);
+  const [commitError, setCommitError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function onCommit() {
+    setCommitError(null);
+    if (!portCallId) {
+      setCommitted(true);
+      return;
+    }
+    startTransition(async () => {
+      const r = await commitExtraction(portCallId, {
+        events: events
+          .filter((e) => e.included)
+          .map((e) => ({ type: e.type, occurredLocal: e.occurredLocal })),
+        stoppages: stoppages
+          .filter((s) => s.included)
+          .map((s) => ({
+            reasonCategory: s.reasonCategory,
+            reasonText: s.reasonText,
+            startLocal: s.startLocal,
+            endLocal: s.endLocal,
+          })),
+      });
+      if (r.ok) {
+        setSummary(r.data);
+        setCommitted(true);
+      } else {
+        setCommitError(r.message);
+      }
+    });
+  }
 
   const confirmedCount = useMemo(
     () =>
@@ -414,22 +460,62 @@ export function ExtractionReview({ extraction }: { extraction: SofExtraction }) 
                 {confirmedCount}
               </span>
             </div>
-            {committed ? (
+            {committed && summary ? (
+              <div className="text-[13px]">
+                <div
+                  className="rounded p-3 mb-2"
+                  style={{ background: "var(--teal-soft)", color: "var(--teal)" }}
+                >
+                  ✓ Committed {summary.committedEvents} event
+                  {summary.committedEvents === 1 ? "" : "s"} and{" "}
+                  {summary.committedStoppages} stoppage
+                  {summary.committedStoppages === 1 ? "" : "s"}.
+                </div>
+                {summary.skipped.length > 0 && (
+                  <div className="mb-2">
+                    <div className="text-[12px] font-medium mb-1" style={{ color: "var(--rust)" }}>
+                      {summary.skipped.length} not committed
+                    </div>
+                    {summary.skipped.map((s, i) => (
+                      <div key={i} className="text-[11.5px] mb-0.5" style={muted}>
+                        • {s}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {voyageId && (
+                  <Link
+                    href={`/admin/voyages/${voyageId}`}
+                    className="text-[13px] no-underline"
+                    style={{ color: "var(--brass)" }}
+                  >
+                    → Back to voyage
+                  </Link>
+                )}
+              </div>
+            ) : committed ? (
               <div
                 className="text-[13px] rounded p-3"
                 style={{ background: "var(--teal-soft)", color: "var(--teal)" }}
               >
-                ✓ {confirmedCount} facts ready to commit to the voyage. (Wiring to
-                the engine is the next slice.)
+                ✓ {confirmedCount} facts confirmed. Open this from a port call to
+                commit them to a voyage.
               </div>
             ) : (
-              <PrimaryButton
-                className="w-full"
-                onClick={() => setCommitted(true)}
-                disabled={confirmedCount === 0}
-              >
-                Commit {confirmedCount} facts
-              </PrimaryButton>
+              <>
+                {commitError && (
+                  <div className="text-[12px] mb-2" style={{ color: "var(--danger)" }}>
+                    {commitError}
+                  </div>
+                )}
+                <PrimaryButton
+                  className="w-full"
+                  onClick={onCommit}
+                  disabled={confirmedCount === 0 || pending}
+                >
+                  {pending ? "Committing…" : `Commit ${confirmedCount} facts`}
+                </PrimaryButton>
+              </>
             )}
             <p className="text-[11.5px] mt-2" style={muted}>
               Extracted by {extraction.extractionModel}. Every fact keeps its

@@ -4,15 +4,27 @@ import type { SofExtraction } from "@/lib/ingestion/schema";
 import fixture from "@/lib/ingestion/fixtures/my-fellas-loading.extraction.json";
 
 /**
- * SOF ingestion — review preview.
+ * SOF ingestion — review.
  *
- * Renders the extraction review experience against the proof-of-concept
- * fixture (MV MY FELLAS loading SOF). This is the review step of the ingestion
- * pipeline; upload + live extraction and commit-to-engine follow as later
- * slices. Gated behind an authenticated session like the rest of the app.
+ * Renders the extraction review against the proof-of-concept fixture. With a
+ * `portCall` query param (set by "Import from SOF" on a port call) the Commit
+ * button writes the confirmed facts to that port call and feeds the engine;
+ * without it, the page is a standalone preview. Live document upload replaces
+ * the fixture in a later slice.
  */
-export default async function IngestPreviewPage() {
+export default async function IngestPreviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ portCall?: string; voyage?: string }>;
+}) {
   await authorized("voyage.read", async (c) => c);
+  const { portCall, voyage } = await searchParams;
   const extraction = fixture as unknown as SofExtraction;
-  return <ExtractionReview extraction={extraction} />;
+  return (
+    <ExtractionReview
+      extraction={extraction}
+      portCallId={portCall}
+      voyageId={voyage}
+    />
+  );
 }
