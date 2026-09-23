@@ -6,6 +6,7 @@ import { listRuleSetVersions } from "@/lib/actions/laytime-rule-set-versions";
 import { listLaytimePools } from "@/lib/actions/laytime-pools";
 import { listPorts } from "@/lib/actions/ports";
 import { listCargoes } from "@/lib/actions/cargoes";
+import { listStoppageReasons } from "@/lib/actions/stoppage-reasons";
 import { ContractDetailScreen } from "@/components/admin/ContractDetailScreen";
 
 export default async function ContractDetailPage({
@@ -39,12 +40,13 @@ export default async function ContractDetailPage({
   // cargoes are loaded WITH inactive rows so a term that references a since-
   // deactivated port/cargo can still show its real name during edit; the
   // screen offers only active ones as new choices.
-  const [terms, ruleSets, pools, ports, cargoes] = await Promise.all([
+  const [terms, ruleSets, pools, ports, cargoes, reasons] = await Promise.all([
     listContractLaytimeTerms(id, { includeInactive: true }),
     listLaytimeRuleSets(),
     listLaytimePools(id),
     listPorts({ includeInactive: true }),
     listCargoes({ includeInactive: true }),
+    listStoppageReasons({ includeInactive: true }),
   ]);
 
   // Flatten rule-set versions into a single option list — no "list all
@@ -80,6 +82,7 @@ export default async function ContractDetailPage({
       versionOptions={versionOptions}
       ports={ports.ok ? ports.data.map((p) => ({ id: p.id, name: p.name, status: p.status })) : []}
       cargoes={cargoes.ok ? cargoes.data.map((c) => ({ id: c.id, name: c.name, status: c.status })) : []}
+      stoppageReasons={reasons.ok ? reasons.data.map((r) => ({ id: r.id, name: r.name, status: r.status })) : []}
     />
   );
 }

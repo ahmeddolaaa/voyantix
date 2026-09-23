@@ -80,6 +80,7 @@ export async function loadPortCallCalcData(
       commencementRule: contractLaytimeTerms.commencementRule,
       turnTimeHours: contractLaytimeTerms.turnTimeHours,
       turnTimeTrigger: contractLaytimeTerms.turnTimeTrigger,
+      onceOnDemurrage: contractLaytimeTerms.onceOnDemurrage,
       ruleSetVersionId: contractLaytimeTerms.ruleSetVersionId,
     })
     .from(contractLaytimeTerms)
@@ -165,6 +166,7 @@ export async function loadPortCallCalcData(
     .select({
       stoppageReasonId: contractStoppageRules.stoppageReasonId,
       countability: contractStoppageRules.countability,
+      excludedOnDemurrage: contractStoppageRules.excludedOnDemurrage,
     })
     .from(contractStoppageRules)
     .where(
@@ -176,6 +178,7 @@ export async function loadPortCallCalcData(
   const stoppageRules: LoadedStoppageRule[] = ruleRows.map((r) => ({
     stoppageReasonId: r.stoppageReasonId,
     countability: r.countability as StoppageCountability,
+    excludedOnDemurrage: r.excludedOnDemurrage,
   }));
 
   let holidayDates: string[] = [];
@@ -233,6 +236,7 @@ export async function loadPortCallCalcData(
       commencementRule: term.commencementRule,
       turnTimeHours: term.turnTimeHours,
       turnTimeTrigger: term.turnTimeTrigger,
+      onceOnDemurrage: term.onceOnDemurrage,
     },
     version: {
       excludedWeekdays: version.excludedWeekdays,

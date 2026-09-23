@@ -62,7 +62,17 @@ export type LoadedStoppage = {
 export type LoadedStoppageRule = {
   stoppageReasonId: string;
   countability: StoppageCountability;
+  /** Still interrupts time once on demurrage (OODAOD exception). */
+  excludedOnDemurrage?: boolean;
 };
+
+function demurrageExceptions(rules: LoadedStoppageRule[]): Set<string> {
+  return new Set(
+    rules
+      .filter((r) => r.excludedOnDemurrage === true && r.countability === "AlwaysExcluded")
+      .map((r) => r.stoppageReasonId)
+  );
+}
 
 export type LoadedRuleSetVersion = {
   excludedWeekdays: number[];
@@ -80,6 +90,8 @@ export type LoadedTerm = {
   commencementRule: string;
   turnTimeHours: string | null;
   turnTimeTrigger: string | null;
+  /** "Once on demurrage, always on demurrage" clause. */
+  onceOnDemurrage: boolean;
 };
 
 export type PortCallCalcData = {
@@ -194,6 +206,8 @@ export function computePortCall(data: PortCallCalcData): PortCallComputation {
     eiuApplies: data.version.eiuApplies,
     stoppageRules,
     allowedSeconds,
+    onceOnDemurrage: data.term.onceOnDemurrage,
+    demurrageExceptedReasonIds: demurrageExceptions(data.stoppageRules),
     stoppages,
     weatherEvents,
     didWorkOccur,
@@ -319,6 +333,8 @@ export function computeProvisionalStatus(
     eiuApplies: data.version.eiuApplies,
     stoppageRules,
     allowedSeconds,
+    onceOnDemurrage: data.term.onceOnDemurrage,
+    demurrageExceptedReasonIds: demurrageExceptions(data.stoppageRules),
     stoppages,
     weatherEvents,
     didWorkOccur,

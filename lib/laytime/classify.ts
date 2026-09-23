@@ -78,6 +78,8 @@ export type ClassifiedInterval = {
   eiuRelevant: boolean;
   /** Applied reason codes (provenance). Persistence shape is Phase 7's concern. */
   reasons: string[];
+  /** Set when a stoppage excluded this interval: the stoppage reason id. */
+  stoppageReasonId?: string;
 };
 
 /** Classifies one interval's preliminary treatment. */
@@ -97,7 +99,14 @@ export function classifyInterval(
       );
     }
     if (mode === "AlwaysExcluded") {
-      return { ...base, treatment: "EXCLUDED", countedFraction: 0, eiuRelevant: false, reasons: ["STOPPAGE_EXCLUDED"] };
+      return {
+        ...base,
+        treatment: "EXCLUDED",
+        countedFraction: 0,
+        eiuRelevant: false,
+        reasons: ["STOPPAGE_EXCLUDED"],
+        stoppageReasonId: f.stoppageReasonId,
+      };
     }
     if (mode === "CountsAgainstOwner") {
       // The balance effect of this mode is not defined by the baseline.

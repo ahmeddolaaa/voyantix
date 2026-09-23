@@ -41,6 +41,7 @@ import {
 } from "./classify";
 import { applyEiu } from "./eiu";
 import { balancePortCall, type Balance } from "./accumulate";
+import { applyOnceOnDemurrage } from "./demurrage-state";
 
 export type PortCallCalcInput = {
   /** The countable window. How it is derived is the caller's isolated concern. */
@@ -57,6 +58,10 @@ export type PortCallCalcInput = {
   stoppageRules: ReadonlyMap<string, StoppageCountability>;
   /** Allowed laytime in seconds (unit already resolved by the caller). */
   allowedSeconds: number;
+  /** "Once on demurrage, always on demurrage" (AN-2). Default false. */
+  onceOnDemurrage?: boolean;
+  /** Stoppage reason ids that still interrupt time once on demurrage. */
+  demurrageExceptedReasonIds?: ReadonlySet<string>;
 
   // --- operational data (live, concrete spans) ---
   stoppages: StoppageSpan[];
@@ -70,6 +75,8 @@ export type PortCallCalcResult = {
   balance: Balance;
   /** The final classified time-sheet (the single source of calculation truth). */
   intervals: ClassifiedInterval[];
+  /** When OODAOD applies: the instant laytime expired, else null. */
+  demurrageExpiresAt: Date | null;
 };
 
 export function calculatePortCall(
@@ -109,7 +116,17 @@ export function calculatePortCall(
   );
 
   const afterEiu = applyEiu(classified, input.eiuApplies, input.didWorkOccur);
-  const balance = balancePortCall(afterEiu, input.allowedSeconds);
+  const oodaod = applyOnceOnDemurrage(
+    afterEiu,
+    input.allowedSeconds,
+    input.onceOnDemurrage ?? false,
+    input.demurrageExceptedReasonIds
+  );
+  const balance = balancePortCall(oodaod.intervals, input.allowedSeconds);
 
-  return { balance, intervals: afterEiu };
+  return {
+    balance,
+    intervals: oodaod.intervals,
+    demurrageExpiresAt: oodaod.expiresAt,
+  };
 }

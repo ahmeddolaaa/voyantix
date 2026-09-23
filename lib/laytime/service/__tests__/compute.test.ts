@@ -23,6 +23,7 @@ const base = (over: Partial<PortCallCalcData> = {}): PortCallCalcData => ({
     commencementRule: "NOR_ACCEPTED",
     turnTimeHours: "24",
     turnTimeTrigger: "NOR_ACCEPTED",
+    onceOnDemurrage: false,
   },
   version: { excludedWeekdays: [], eiuApplies: true, weatherApplies: false },
   events: [
@@ -153,6 +154,7 @@ describe("computePortCall — rate-based allowance", () => {
     commencementRule: "NOR_ACCEPTED",
     turnTimeHours: null,
     turnTimeTrigger: null,
+    onceOnDemurrage: false,
   };
 
   it("computes allowed = actual quantity / rate", () => {
@@ -179,6 +181,7 @@ describe("computeProvisionalStatus — running reference", () => {
     commencementRule: "NOR_ACCEPTED",
     turnTimeHours: null,
     turnTimeTrigger: null,
+    onceOnDemurrage: false,
   };
   // In progress: NOR accepted, no OPS_COMPLETED yet.
   const events = [

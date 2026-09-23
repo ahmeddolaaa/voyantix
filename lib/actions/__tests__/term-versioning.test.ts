@@ -21,6 +21,7 @@ import {
   organizations, users, memberships, ports, contracts,
   laytimeRuleSets, laytimeRuleSetVersions, contractLaytimeTerms,
   operationalEventTypes, operationalEvents, voyages, voyagePortCalls,
+  stoppageReasons, contractStoppageRules,
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { hashPassword } from "@/lib/auth/password";
@@ -191,6 +192,38 @@ describe("updateContractLaytimeTerm — finalized dependency: creates a new vers
       expect(ids).toContain(newId);
       expect(ids).not.toContain(term);
     }
+  });
+
+  it("carries the stoppage rules (incl. OODAOD exceptions) to the new version", async () => {
+    currentToken = adminToken;
+    const term = await makeTerm({ allowance: "1", demurrageRate: "2000" });
+    const { voyageId } = await makeVoyageWithCalc(term);
+    await buildStatementDraft(voyageId);
+    await finalizeStatement(voyageId);
+
+    const [reason] = await db.insert(stoppageReasons).values({
+      organizationId: orgA, name: `Breakdown ${stamp}`,
+    }).returning({ id: stoppageReasons.id });
+    await db.insert(contractStoppageRules).values({
+      organizationId: orgA, termId: term, stoppageReasonId: reason.id,
+      countability: "AlwaysExcluded", excludedOnDemurrage: true,
+    });
+
+    const r = await updateContractLaytimeTerm(term, termInput({ allowance: "2", onceOnDemurrage: true }));
+    if (!r.ok) throw new Error("update failed");
+    expect(r.data.versioned).toBe(true);
+
+    const rules = await db.select({
+      reason: contractStoppageRules.stoppageReasonId,
+      countability: contractStoppageRules.countability,
+      excludedOnDemurrage: contractStoppageRules.excludedOnDemurrage,
+    }).from(contractStoppageRules).where(eq(contractStoppageRules.termId, r.data.id));
+    expect(rules).toEqual([
+      { reason: reason.id, countability: "AlwaysExcluded", excludedOnDemurrage: true },
+    ]);
+    const [newRow] = await db.select({ o: contractLaytimeTerms.onceOnDemurrage })
+      .from(contractLaytimeTerms).where(eq(contractLaytimeTerms.id, r.data.id));
+    expect(newRow.o).toBe(true);
   });
 
   it("refuses to edit a superseded version directly", async () => {

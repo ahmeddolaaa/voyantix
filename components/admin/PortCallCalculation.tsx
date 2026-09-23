@@ -33,6 +33,7 @@ const REASON_LABEL: Record<string, string> = {
   EIU_KEPT_EXCLUDED: "Excepted (kept excluded)",
   COUNTED_WHILE_EXCLUDED_USED: "Worked on excepted day (counted)",
   EXCLUDED_NOT_USED: "Excepted (not worked)",
+  ON_DEMURRAGE: "On demurrage",
 };
 
 function reasonText(reasons: string[]): string {

@@ -276,6 +276,10 @@ export const contractLaytimeTerms = pgTable(
     turnTimeHours: numeric("turn_time_hours"),
     turnTimeTrigger: text("turn_time_trigger"),
     commencementRule: text("commencement_rule").notNull(),
+    // "Once on demurrage, always on demurrage": after laytime expires, the
+    // laytime exceptions (excluded days, holidays, stoppages) stop applying and
+    // all subsequent time counts. Default off = prior behaviour.
+    onceOnDemurrage: boolean("once_on_demurrage").notNull().default(false),
 
     // references
     ruleSetVersionId: uuid("rule_set_version_id").notNull(),
@@ -369,6 +373,10 @@ export const contractStoppageRules = pgTable(
     termId: uuid("term_id").notNull(),
     stoppageReasonId: uuid("stoppage_reason_id").notNull(),
     countability: stoppageCountabilityEnum("countability").notNull(),
+    // OODAOD exception: when the term is "once on demurrage, always on
+    // demurrage", an AlwaysExcluded stoppage with this flag still interrupts
+    // time after laytime expires (e.g. breakdown of the vessel). Default off.
+    excludedOnDemurrage: boolean("excluded_on_demurrage").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

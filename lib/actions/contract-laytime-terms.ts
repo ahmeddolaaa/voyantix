@@ -8,6 +8,7 @@ import {
   voyagePortCalls,
   laytimeStatements,
   laytimeCalculations,
+  contractStoppageRules,
 } from "@/db/schema";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { authorized, recordAudit } from "@/lib/auth/authorized";
@@ -52,6 +53,7 @@ export type ContractLaytimeTermRow = {
   turnTimeHours: string | null;
   turnTimeTrigger: string | null;
   commencementRule: string;
+  onceOnDemurrage: boolean;
   ruleSetVersionId: string;
   poolId: string | null;
   status: "active" | "inactive";
@@ -90,6 +92,8 @@ export type ContractLaytimeTermInput = {
   turnTimeHours?: string | null;
   turnTimeTrigger?: string | null;
   commencementRule: string;
+  /** "Once on demurrage, always on demurrage" clause (default false). */
+  onceOnDemurrage?: boolean | null;
   ruleSetVersionId: string;
   poolId?: string | null;
 };
@@ -108,6 +112,7 @@ type ValidatedTerm = {
   turnTimeHours: string | null;
   turnTimeTrigger: string | null;
   commencementRule: string;
+  onceOnDemurrage: boolean;
   ruleSetVersionId: string;
   poolId: string | null;
 };
@@ -191,6 +196,7 @@ function validateTermInput(
     turnTimeHours,
     turnTimeTrigger: trimOrNull(input.turnTimeTrigger),
     commencementRule,
+    onceOnDemurrage: input.onceOnDemurrage === true,
     ruleSetVersionId,
     poolId: trimOrNull(input.poolId),
   });
@@ -348,6 +354,7 @@ export async function createContractLaytimeTerm(
           turnTimeHours: v.turnTimeHours,
           turnTimeTrigger: v.turnTimeTrigger,
           commencementRule: v.commencementRule,
+          onceOnDemurrage: v.onceOnDemurrage,
           ruleSetVersionId: v.ruleSetVersionId,
           poolId: v.poolId,
         })
@@ -440,6 +447,7 @@ export async function updateContractLaytimeTerm(
         turnTimeHours: v.turnTimeHours,
         turnTimeTrigger: v.turnTimeTrigger,
         commencementRule: v.commencementRule,
+        onceOnDemurrage: v.onceOnDemurrage,
         ruleSetVersionId: v.ruleSetVersionId,
         poolId: v.poolId,
       };
@@ -490,6 +498,33 @@ export async function updateContractLaytimeTerm(
               eq(contractLaytimeTerms.organizationId, ctx.organizationId)
             )
           );
+
+        // The contract's stoppage rules belong to the term; carry them to the
+        // new version so it calculates exactly like the one it replaces.
+        const oldRules = await tx
+          .select({
+            stoppageReasonId: contractStoppageRules.stoppageReasonId,
+            countability: contractStoppageRules.countability,
+            excludedOnDemurrage: contractStoppageRules.excludedOnDemurrage,
+          })
+          .from(contractStoppageRules)
+          .where(
+            and(
+              eq(contractStoppageRules.termId, termId),
+              eq(contractStoppageRules.organizationId, ctx.organizationId)
+            )
+          );
+        if (oldRules.length > 0) {
+          await tx.insert(contractStoppageRules).values(
+            oldRules.map((r) => ({
+              organizationId: ctx.organizationId,
+              termId: newTerm.id,
+              stoppageReasonId: r.stoppageReasonId,
+              countability: r.countability,
+              excludedOnDemurrage: r.excludedOnDemurrage,
+            }))
+          );
+        }
 
         await tx
           .update(voyagePortCalls)

@@ -16,6 +16,7 @@ import {
   type ContractLaytimeTermInput,
 } from "@/lib/actions/contract-laytime-terms";
 import { DataTable, type Column, type SortState } from "@/components/DataTable";
+import { TermStoppageRules } from "@/components/admin/TermStoppageRules";
 import { Field, TextInput, FormError, SubmitButton } from "@/components/forms";
 import {
   Card,
@@ -64,6 +65,8 @@ type TermFormState = {
   turnTimeHours: string;
   turnTimeTrigger: string;
   commencementRule: string;
+  /** "YES" | "NO" — once on demurrage, always on demurrage. */
+  onceOnDemurrage: string;
   poolId: string;
 };
 const emptyTermForm: TermFormState = {
@@ -81,6 +84,7 @@ const emptyTermForm: TermFormState = {
   turnTimeHours: "",
   turnTimeTrigger: "",
   commencementRule: "",
+  onceOnDemurrage: "NO",
   poolId: "",
 };
 
@@ -113,6 +117,7 @@ export function ContractDetailScreen({
   versionOptions,
   ports,
   cargoes,
+  stoppageReasons,
 }: {
   contractId: string;
   contractReference: string;
@@ -122,8 +127,10 @@ export function ContractDetailScreen({
   versionOptions: VersionOption[];
   ports: MasterOption[];
   cargoes: MasterOption[];
+  stoppageReasons: MasterOption[];
 }) {
   const [pending, startTransition] = useTransition();
+  const [rulesTermId, setRulesTermId] = useState<string | null>(null);
 
   // ── Pools state ──────────────────────────────────────────────────────────
   const [pools, setPools] = useState(initialPools);
@@ -261,6 +268,7 @@ export function ContractDetailScreen({
       turnTimeHours: t.turnTimeHours ?? "",
       turnTimeTrigger: t.turnTimeTrigger ?? "",
       commencementRule: t.commencementRule,
+      onceOnDemurrage: t.onceOnDemurrage ? "YES" : "NO",
       poolId: t.poolId ?? "",
     });
     setTermFieldErrors({});
@@ -290,6 +298,7 @@ export function ContractDetailScreen({
       turnTimeHours: termForm.turnTimeHours || null,
       turnTimeTrigger: termForm.turnTimeTrigger || null,
       commencementRule: termForm.commencementRule,
+      onceOnDemurrage: termForm.onceOnDemurrage === "YES",
       poolId: termForm.poolId || null,
     };
     startTransition(async () => {
@@ -317,12 +326,15 @@ export function ContractDetailScreen({
         turnTimeHours: termForm.turnTimeHours.trim() || null,
         turnTimeTrigger: termForm.turnTimeTrigger.trim() || null,
         commencementRule: termForm.commencementRule.trim(),
+        onceOnDemurrage: termForm.onceOnDemurrage === "YES",
         ruleSetVersionId: termForm.ruleSetVersionId,
         poolId: termForm.poolId || null,
         status: termEditing?.status ?? "active",
       };
+      // A frozen term is edited by creating a NEW version with a new id, so
+      // replace the row being edited (not a row matching the returned id).
       setTerms((prev) =>
-        termEditing ? prev.map((t) => (t.id === saved.id ? saved : t)) : [...prev, saved]
+        termEditing ? prev.map((t) => (t.id === termEditing.id ? saved : t)) : [...prev, saved]
       );
       closeTermForm();
     });
@@ -413,6 +425,13 @@ export function ContractDetailScreen({
             className="!px-2.5 !py-1 !text-[12px]"
           >
             Edit
+          </SecondaryButton>
+          <SecondaryButton
+            onClick={() => setRulesTermId(t.id)}
+            disabled={pending}
+            className="!px-2.5 !py-1 !text-[12px]"
+          >
+            Stoppage rules
           </SecondaryButton>
           <SecondaryButton
             onClick={() => toggleTermStatus(t)}
@@ -658,6 +677,24 @@ export function ContractDetailScreen({
               {(a) => (<TextInput {...a} value={termForm.demurrageRate} disabled={pending}
                 onChange={(e) => updateTermField("demurrageRate", e.target.value)} placeholder="per day" />)}
             </Field>
+            <Field
+              label="Once on demurrage, always on demurrage"
+              description="Yes = after laytime expires, excepted days, holidays and stoppages no longer stop the clock."
+            >
+              {(a) => (
+                <select
+                  {...a}
+                  value={termForm.onceOnDemurrage}
+                  disabled={pending}
+                  onChange={(e) => updateTermField("onceOnDemurrage", e.target.value)}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                  style={selectStyle}
+                >
+                  <option value="NO">No</option>
+                  <option value="YES">Yes</option>
+                </select>
+              )}
+            </Field>
             <Field label="Despatch rate">
               {(a) => (<TextInput {...a} value={termForm.despatchRate} disabled={pending}
                 onChange={(e) => updateTermField("despatchRate", e.target.value)} placeholder="optional" />)}
@@ -708,6 +745,26 @@ export function ContractDetailScreen({
           </div>
         </Card>
       )}
+
+      {rulesTermId && (() => {
+        const t = terms.find((x) => x.id === rulesTermId);
+        if (!t) return null;
+        const scope = [
+          t.function === "LOAD" ? "Load" : "Discharge",
+          t.portId ? ports.find((p) => p.id === t.portId)?.name : "any port",
+          t.cargoId ? cargoes.find((c) => c.id === t.cargoId)?.name : "any cargo",
+        ].join(" · ");
+        return (
+          <TermStoppageRules
+            key={t.id}
+            termId={t.id}
+            termLabel={scope}
+            onceOnDemurrage={t.onceOnDemurrage}
+            reasons={stoppageReasons}
+            onClose={() => setRulesTermId(null)}
+          />
+        );
+      })()}
 
       <DataTable
         caption="Laytime terms for this contract"

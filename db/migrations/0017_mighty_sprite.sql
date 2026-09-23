@@ -1,0 +1,1 @@
+ALTER TABLE "contract_stoppage_rules" ADD COLUMN "excluded_on_demurrage" boolean DEFAULT false NOT NULL;
