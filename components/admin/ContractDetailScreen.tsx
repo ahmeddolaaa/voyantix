@@ -437,7 +437,7 @@ export function ContractDetailScreen({
       </div>
 
       {/* ══ POOLS ══ */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <SectionHeading>Pools</SectionHeading>
         {!poolFormOpen && (
           <SecondaryButton onClick={openPoolCreate} disabled={pending}>
@@ -445,6 +445,12 @@ export function ContractDetailScreen({
           </SecondaryButton>
         )}
       </div>
+      <p className="text-[12.5px] mb-3" style={{ color: "var(--steel)" }}>
+        Only for <strong style={{ color: "var(--ink-soft)" }}>reversible</strong>{" "}
+        laytime, where load and discharge share one combined allowance. If this
+        charter party is non-reversible, skip pools and set the allowance on each
+        term below.
+      </p>
 
       {poolFormOpen && (
         <Card className="mb-4">
@@ -459,19 +465,34 @@ export function ContractDetailScreen({
                   onChange={(e) => updatePoolField("name", e.target.value)} />
               )}
             </Field>
-            <Field label="Total allowance" required error={poolFieldErrors.totalAllowance}>
+            <Field
+              label="Total allowance"
+              required
+              error={poolFieldErrors.totalAllowance}
+              description="The combined load + discharge time budget for this pool."
+            >
               {(a) => (
                 <TextInput {...a} value={poolForm.totalAllowance} disabled={pending}
                   onChange={(e) => updatePoolField("totalAllowance", e.target.value)} placeholder="e.g. 30" />
               )}
             </Field>
-            <Field label="Allowance unit" required error={poolFieldErrors.allowanceUnit}>
+            <Field
+              label="Allowance unit"
+              required
+              error={poolFieldErrors.allowanceUnit}
+              description="The unit that budget is measured in (e.g. days, hours)."
+            >
               {(a) => (
                 <TextInput {...a} value={poolForm.allowanceUnit} disabled={pending}
                   onChange={(e) => updatePoolField("allowanceUnit", e.target.value)} placeholder="e.g. days" />
               )}
             </Field>
-            <Field label="Settlement policy" required error={poolFieldErrors.settlementPolicy}>
+            <Field
+              label="Settlement policy"
+              required
+              error={poolFieldErrors.settlementPolicy}
+              description="How the pooled over/under time settles — which rate applies to the combined result."
+            >
               {(a) => (
                 <TextInput {...a} value={poolForm.settlementPolicy} disabled={pending}
                   onChange={(e) => updatePoolField("settlementPolicy", e.target.value)} />
