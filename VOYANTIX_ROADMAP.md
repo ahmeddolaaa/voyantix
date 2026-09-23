@@ -79,6 +79,24 @@ Source files (uploaded 2026-09): MY FELLAS NOR/SOF loading, MY FELLAS laytime ca
 5. **Input timezone** — `datetime-local` inputs still mean browser time, not port time (see Monitored issues).
 6. Still withheld: weather counting (B3/WWD), CountsAgainstOwner stoppages, pooled settlement rate (B7), B6/B9 reporting.
 
+### Known assumptions and verification gaps (from the 2026-09-23 self-audit — still open)
+- **PWWD treated as running time minus configured exclusions.** "PWWD" (per weather working day) implies weather days do not count; weather counting is still withheld (B3) — a rule set with `weatherApplies` and weather events REFUSES. Confirm the intended PWWD meaning with Adel before relying on it for weather-affected calls.
+- **Multi-cargo + rate:** a RATE term sums ALL actual cargo quantities on the port call and divides by ONE rate. Charter parties with different rates per cargo/grade are not modelled.
+- **No full claim verified end to end through the app against a real document.** What IS verified: engine golden tests (MY FELLAS loading reproduced exactly), the live status/OODAOD/exceptions on demo data in the browser. Next milestone should be: import a real SOF → configure the real term → calculate → statement, and compare to Adel's calculation.
+- **SOF commit mapping** (`lib/actions/commit-extraction.ts`): events map to event types by engine semantic; stoppages map to stoppage reasons by **best-effort name match** (unmatched rows are skipped and reported); local SOF times are converted with the port call's timezone (`instantFromLocal`).
+
+### Product principles (frozen)
+- **Bounded semantic model:** Template → bounded typed configuration → immutable RuleSetVersion → deterministic pipeline. **No generic rule engine, DSL, or scripting.** New contract behaviour = a new bounded, typed option, evidenced by a real document.
+- **The product is for any customer.** Adel's charter parties are EVIDENCE that discovers capabilities; their values are customer configuration (Category C), never product defaults.
+- **Engine = trust foundation; SOF ingestion = differentiator.** Competitors (i-Magellan, Veson) make the analyst hand-key every event.
+- **Vision-LLM choice (not wired yet):** Gemini — free tier costs $0 but Google may train on the data (fine only for Adel's own test documents); the paid tier (~$0.14 per 1000 pages) does not train and is required for real customer documents. Extraction output is always a draft; human review is the trust mechanism.
+
+### Cloud Shell troubleshooting (hit before — don't rediscover)
+- **Bundle "does not appear to be a git repository"** → wrong path; use `find ~ -name "<bundle>"`.
+- **Sign-in fails when running the app inside Cloud Shell** → the exact preview host must be in `serverActions.allowedOrigins` in `next.config.ts` (`*.cloudshell.dev` already added), then restart the dev server.
+- **Web Preview opens port 8080** → change the port in the preview URL to 3000.
+- **Cloud Shell VM recycles between sessions** → a Postgres container started there is gone (the git repo in home persists). Production does NOT depend on Cloud Shell; it's only the push machine.
+
 ### Working agreement with Adel (standing instructions)
 - Reply in **Egyptian Arabic**; all code, comments, file names, commit messages in **English**.
 - One step at a time; don't stop except for a genuinely blocking question; don't ask technical questions inside Claude's own job — decide and proceed.
