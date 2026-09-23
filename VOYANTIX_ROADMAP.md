@@ -75,7 +75,7 @@ Source files (uploaded 2026-09): MY FELLAS NOR/SOF loading, MY FELLAS laytime ca
 
 ### OPEN ITEMS — pick up here (in this order unless Adel says otherwise)
 1. ~~NOR after 12:00 under the 12:00/14:00 rule~~ — **DONE 2026-09-23** (amended GENCON 6(c), see "What the product does today").
-2. **Overlapping stoppages in real SOFs** — MY FELLAS SOF records a port closure (25/06 20:00–26/06 01:00) with a labour break (21:55–23:20) inside it. The DB forbids overlapping stoppages (`stoppages_no_overlap`), so committing that SOF from the ingestion review will fail on those rows. Needs a product decision on representation (e.g. split/merge on commit, or allow overlap with a precedence rule).
+2. ~~Overlapping stoppages in real SOFs~~ — **NOT an open item (corrected 2026-09-23).** PO13 is frozen: the DB forbids overlapping stoppages. `commitExtraction` already respects it — an overlapping SOF row is rejected by `createStoppage`, listed under "skipped" with the reason, and the rest of the SOF commits. The analyst adjusts that row by hand if needed. No product decision required.
 3. **Despatch calculation** — `lib/laytime/settlement.ts` still refuses any despatch (`DESPATCH_BASIS_WITHHELD`). Basis can now be stored (WTS/ATS); WTS computation not built. test_2 has a real despatch example (3d 11h 26m saved × $4,375 → $15,211.76).
 4. **Vision-LLM extraction** for SOF ingestion (Gemini: free tier trains on data → paid no-training tier for real customer documents). Review screen + commit already exist.
 5. **Input timezone** — `datetime-local` inputs still mean browser time, not port time (see Monitored issues).
