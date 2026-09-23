@@ -203,7 +203,10 @@ export async function loadPortCallCalcData(
   // allowance. Only recorded actuals count; if none are recorded the total is
   // null and a rate-based term refuses rather than guessing from planned qty.
   const cargoRows = await db
-    .select({ actualQuantityMt: cargoPlans.actualQuantityMt })
+    .select({
+      plannedQuantityMt: cargoPlans.plannedQuantityMt,
+      actualQuantityMt: cargoPlans.actualQuantityMt,
+    })
     .from(cargoPlans)
     .where(
       and(
@@ -211,13 +214,14 @@ export async function loadPortCallCalcData(
         eq(cargoPlans.organizationId, ctx.organizationId)
       )
     );
-  const actuals = cargoRows
-    .map((r) => r.actualQuantityMt)
-    .filter((q): q is string => q != null && q.trim() !== "");
-  const actualQuantityMt =
-    actuals.length === 0
+  const sumOf = (vals: (string | null)[]): string | null => {
+    const nums = vals.filter((q): q is string => q != null && q.trim() !== "");
+    return nums.length === 0
       ? null
-      : String(actuals.reduce((sum, q) => sum + Number(q), 0));
+      : String(nums.reduce((sum, q) => sum + Number(q), 0));
+  };
+  const actualQuantityMt = sumOf(cargoRows.map((r) => r.actualQuantityMt));
+  const plannedQuantityMt = sumOf(cargoRows.map((r) => r.plannedQuantityMt));
 
   const data: PortCallCalcData = {
     timeZone: portCall.timeZone,
@@ -241,6 +245,7 @@ export async function loadPortCallCalcData(
     holidayDates,
     workedLocalDates,
     actualQuantityMt,
+    plannedQuantityMt,
   };
 
   return {

@@ -28,7 +28,8 @@ import {
   isEngineEventSemantic,
   type EngineEvent,
 } from "../commencement";
-import { resolveCandidateWindow } from "../window";
+import { resolveCandidateWindow, deriveCommencementStart } from "../window";
+import { resolveTurnTime } from "../turn-time";
 import { calculatePortCall } from "../pipeline";
 import { type StoppageSpan } from "../event-tagging";
 import { type WeatherEvent } from "../event-periods";
@@ -95,6 +96,9 @@ export type PortCallCalcData = {
   /** Total actual cargo quantity (MT) for the port call; null if none recorded.
       Required only for a RATE-based allowance. */
   actualQuantityMt: string | null;
+  /** Total PLANNED cargo quantity (MT); used for the provisional running view
+      before actuals exist. Null if none planned. */
+  plannedQuantityMt: string | null;
 };
 
 export type PortCallComputation = {
@@ -202,5 +206,133 @@ export function computePortCall(data: PortCallCalcData): PortCallComputation {
     turnTime: cw.turnTime,
     commencementAt: cw.commencementAt,
     allowedSeconds,
+  };
+}
+
+// --- PROVISIONAL RUNNING STATUS (reference, not settlement) ----------------
+
+export type ProvisionalStatus = {
+  /** Allowed laytime (seconds). Provisional when it comes from planned qty. */
+  allowedSeconds: number;
+  /** Counted laytime used up to `asOf`. */
+  usedSeconds: number;
+  /** allowedSeconds − usedSeconds; negative means already on demurrage. */
+  remainingSeconds: number;
+  onDemurrage: boolean;
+  /** True when the allowance used actual cargo quantity; false = planned. */
+  quantityIsActual: boolean;
+  window: { start: Date; end: Date };
+  asOf: Date;
+};
+
+/**
+ * A provisional, reference-only laytime status for an operation still in
+ * progress. It answers "how much laytime is left, and are we about to go on
+ * demurrage?" day by day. It is NOT the settlement: the allowance uses PLANNED
+ * cargo quantity until actuals exist, and counting runs to `asOf` (now) rather
+ * than to OPS_COMPLETED. The same exclusion pipeline applies, so holidays and
+ * recorded stoppages are already subtracted. When actual quantity and the
+ * completion event exist, `computePortCall` is the authoritative figure.
+ */
+export function computeProvisionalStatus(
+  data: PortCallCalcData,
+  asOf: Date
+): ProvisionalStatus {
+  const { engineEvents, weatherEvents } = partitionEvents(data.events);
+
+  const quantityIsActual = data.actualQuantityMt != null;
+  const qty = data.actualQuantityMt ?? data.plannedQuantityMt;
+
+  let allowedSeconds: number;
+  if (data.term.allowanceBasis === "RATE") {
+    if (data.term.allowanceRate == null) {
+      throw new CalculationRefused(
+        "ALLOWANCE_RATE_MISSING",
+        "Cannot show status: this term's allowance is rate-based but no rate is set."
+      );
+    }
+    if (qty == null) {
+      throw new CalculationRefused(
+        "ALLOWANCE_QUANTITY_MISSING",
+        "Cannot show status: a rate-based allowance needs a planned or actual cargo quantity."
+      );
+    }
+    allowedSeconds = allowedSecondsFromRate(
+      Number(qty),
+      Number(data.term.allowanceRate)
+    );
+  } else {
+    allowedSeconds = allowanceToSeconds(
+      data.term.allowance,
+      data.term.allowanceUnit
+    );
+  }
+
+  const turnTimeHours =
+    data.term.turnTimeHours == null ? null : Number(data.term.turnTimeHours);
+  const turnTime = resolveTurnTime(
+    engineEvents,
+    turnTimeHours,
+    data.term.turnTimeTrigger
+  );
+  const start = deriveCommencementStart(
+    engineEvents,
+    data.term.commencementRule,
+    turnTime,
+    data.timeZone
+  );
+
+  // Counting has not begun as of this instant: nothing used yet.
+  if (asOf.getTime() <= start.getTime()) {
+    return {
+      allowedSeconds,
+      usedSeconds: 0,
+      remainingSeconds: allowedSeconds,
+      onDemurrage: allowedSeconds <= 0,
+      quantityIsActual,
+      window: { start, end: start },
+      asOf,
+    };
+  }
+
+  const window = { start, end: asOf };
+  const stoppages: StoppageSpan[] = data.stoppages.map((s) => ({
+    start: s.start,
+    end: s.end ?? window.end,
+    reasonId: s.reasonId,
+  }));
+  const stoppageRules = new Map<string, StoppageCountability>(
+    data.stoppageRules.map((r) => [r.stoppageReasonId, r.countability])
+  );
+  const workedSet = new Set(data.workedLocalDates);
+  const didWorkOccur = (interval: ClassifiedInterval): boolean => {
+    const p = getLocalParts(interval.start, data.timeZone);
+    return workedSet.has(toLocalDateKey(p.year, p.month, p.day));
+  };
+
+  const result = calculatePortCall({
+    window,
+    timeZone: data.timeZone,
+    excludedWeekdays: data.version.excludedWeekdays,
+    holidayDates: new Set(data.holidayDates),
+    weatherApplies: data.version.weatherApplies,
+    eiuApplies: data.version.eiuApplies,
+    stoppageRules,
+    allowedSeconds,
+    stoppages,
+    weatherEvents,
+    didWorkOccur,
+  });
+
+  const usedSeconds = result.balance.usedSeconds;
+  const remainingSeconds = allowedSeconds - usedSeconds;
+  return {
+    allowedSeconds,
+    usedSeconds,
+    remainingSeconds,
+    onDemurrage: remainingSeconds < 0,
+    quantityIsActual,
+    window,
+    asOf,
   };
 }

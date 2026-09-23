@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { computePortCall, type PortCallCalcData } from "../compute";
+import {
+  computePortCall,
+  computeProvisionalStatus,
+  type PortCallCalcData,
+} from "../compute";
 import { CalculationRefused } from "../../refuse";
 import { getLocalParts } from "../../timezone";
 import { toLocalDateKey } from "../../calendar-classification";
@@ -30,6 +34,7 @@ const base = (over: Partial<PortCallCalcData> = {}): PortCallCalcData => ({
   holidayDates: [],
   workedLocalDates: [],
   actualQuantityMt: null,
+  plannedQuantityMt: null,
   ...over,
 });
 
@@ -162,5 +167,52 @@ describe("computePortCall — rate-based allowance", () => {
     expect(() =>
       computePortCall(base({ term: rateTerm, actualQuantityMt: null }))
     ).toThrow(/actual cargo quantity/i);
+  });
+});
+
+describe("computeProvisionalStatus — running reference", () => {
+  const rateTerm = {
+    allowanceBasis: "RATE",
+    allowance: "0",
+    allowanceUnit: "days",
+    allowanceRate: "3000",
+    commencementRule: "NOR_ACCEPTED",
+    turnTimeHours: null,
+    turnTimeTrigger: null,
+  };
+  // In progress: NOR accepted, no OPS_COMPLETED yet.
+  const events = [
+    { semantic: "NOR_ACCEPTED", occurredAt: D("2026-06-12T05:00:00Z") },
+  ];
+
+  it("uses PLANNED quantity when no actual, flagged provisional", () => {
+    const s = computeProvisionalStatus(
+      base({ term: rateTerm, events, plannedQuantityMt: "3000", actualQuantityMt: null }),
+      D("2026-06-13T05:00:00Z")
+    );
+    expect(s.quantityIsActual).toBe(false);
+    expect(s.allowedSeconds).toBe(86400); // 3000/3000 * 86400 = 1 day
+    expect(s.usedSeconds).toBe(86400); // 24h elapsed, nothing excluded
+    expect(s.onDemurrage).toBe(false);
+  });
+
+  it("flags on-demurrage once used exceeds allowed", () => {
+    const s = computeProvisionalStatus(
+      base({ term: rateTerm, events, plannedQuantityMt: "3000", actualQuantityMt: null }),
+      D("2026-06-14T05:00:00Z")
+    );
+    expect(s.usedSeconds).toBe(2 * 86400);
+    expect(s.remainingSeconds).toBeLessThan(0);
+    expect(s.onDemurrage).toBe(true);
+  });
+
+  it("prefers ACTUAL quantity when it exists", () => {
+    const s = computeProvisionalStatus(
+      base({ term: rateTerm, events, plannedQuantityMt: "3000", actualQuantityMt: "1500" }),
+      D("2026-06-13T05:00:00Z")
+    );
+    expect(s.quantityIsActual).toBe(true);
+    expect(s.allowedSeconds).toBe(43200); // 1500/3000 * 86400 = 0.5 day
+    expect(s.onDemurrage).toBe(true); // 24h used > 12h allowed
   });
 });

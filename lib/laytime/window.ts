@@ -44,17 +44,18 @@ export type CandidateWindow = {
  * Derives the countable window from the term's commencement/turn-time config
  * and the port call's live events.
  */
-export function resolveCandidateWindow(
+/**
+ * Where counting begins, from the term's commencement/turn-time config. Shared
+ * by the final window and the provisional running view so both agree on the
+ * start; only the END differs between them.
+ */
+export function deriveCommencementStart(
   events: EngineEvent[],
   commencementRule: string,
-  turnTimeHours: number | null,
-  turnTimeTrigger: string | null,
+  turnTime: TurnTime | null,
   timeZone?: string,
   commencementTimeRule: CommencementTimeRule = "AT_EVENT"
-): CandidateWindow {
-  const turnTime = resolveTurnTime(events, turnTimeHours, turnTimeTrigger);
-
-  let start: Date;
+): Date {
   if (commencementTimeRule !== "AT_EVENT") {
     // A time-of-day commencement rule replaces both the raw event instant and
     // any turn time — it is itself the grace mechanism that decides when
@@ -66,17 +67,42 @@ export function resolveCandidateWindow(
       );
     }
     const basis = determineCommencement(events, commencementRule);
-    start = applyCommencementTimeRule(basis, commencementTimeRule, timeZone);
-  } else if (turnTime !== null) {
-    // Counting begins at the end of turn time (trigger + duration).
-    start = turnTime.endsAt;
-  } else {
-    // No turn time: counting begins at the commencement basis event.
-    start = determineCommencement(events, commencementRule);
+    return applyCommencementTimeRule(basis, commencementTimeRule, timeZone);
   }
+  if (turnTime !== null) {
+    // Counting begins at the end of turn time (trigger + duration).
+    return turnTime.endsAt;
+  }
+  // No turn time: counting begins at the commencement basis event.
+  return determineCommencement(events, commencementRule);
+}
 
-  // Counting stops at operations complete.
-  const end = resolveRequiredEvent(events, "OPS_COMPLETED", "WINDOW_END");
+export function resolveCandidateWindow(
+  events: EngineEvent[],
+  commencementRule: string,
+  turnTimeHours: number | null,
+  turnTimeTrigger: string | null,
+  timeZone?: string,
+  commencementTimeRule: CommencementTimeRule = "AT_EVENT",
+  /** Provisional running view: count up to this instant instead of the
+      OPS_COMPLETED event (used before operations complete). */
+  windowEndOverride?: Date
+): CandidateWindow {
+  const turnTime = resolveTurnTime(events, turnTimeHours, turnTimeTrigger);
+
+  const start = deriveCommencementStart(
+    events,
+    commencementRule,
+    turnTime,
+    timeZone,
+    commencementTimeRule
+  );
+
+  // Counting stops at operations complete — or at the provisional as-of instant.
+  const end =
+    windowEndOverride !== undefined
+      ? windowEndOverride
+      : resolveRequiredEvent(events, "OPS_COMPLETED", "WINDOW_END");
 
   if (start.getTime() >= end.getTime()) {
     throw new CalculationRefused(
