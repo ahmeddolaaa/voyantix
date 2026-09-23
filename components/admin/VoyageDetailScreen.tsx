@@ -23,6 +23,7 @@ import { PortCallEvents } from "@/components/admin/PortCallEvents";
 import { PortCallStoppages } from "@/components/admin/PortCallStoppages";
 import { PortCallShifts } from "@/components/admin/PortCallShifts";
 import { PortCallCalculation } from "@/components/admin/PortCallCalculation";
+import { PortCallProvisionalStatus } from "@/components/admin/PortCallProvisionalStatus";
 import { VoyageStatement } from "@/components/admin/VoyageStatement";
 import { PortCallTimeline } from "@/components/admin/PortCallTimeline";
 import {
@@ -921,6 +922,13 @@ export function VoyageDetailScreen({
                 {/* Right support rail: the computed laytime result and shift
                     performance sit alongside the operational log they read. */}
                 <div className="lg:flex-1 lg:max-w-[440px] min-w-0">
+              {c.status === "ACTIVE" && (
+                <PortCallProvisionalStatus
+                  portCallId={c.id}
+                  timeZone={c.effectiveTimezone}
+                />
+              )}
+
               <PortCallCalculation
                 portCallId={c.id}
                 timeZone={c.effectiveTimezone}
