@@ -12,8 +12,10 @@ const D = (iso: string) => new Date(iso);
 const base = (over: Partial<PortCallCalcData> = {}): PortCallCalcData => ({
   timeZone: CAIRO,
   term: {
+    allowanceBasis: "FIXED",
     allowance: "10",
     allowanceUnit: "days",
+    allowanceRate: null,
     commencementRule: "NOR_ACCEPTED",
     turnTimeHours: "24",
     turnTimeTrigger: "NOR_ACCEPTED",
@@ -27,6 +29,7 @@ const base = (over: Partial<PortCallCalcData> = {}): PortCallCalcData => ({
   stoppageRules: [],
   holidayDates: [],
   workedLocalDates: [],
+  actualQuantityMt: null,
   ...over,
 });
 
@@ -132,5 +135,32 @@ describe("computePortCall — refusals propagate", () => {
       expect(e).toBeInstanceOf(CalculationRefused);
       expect((e as CalculationRefused).code).toBe("WINDOW_END_EVENT_MISSING");
     }
+  });
+});
+
+describe("computePortCall — rate-based allowance", () => {
+  // Real MY FELLAS loading: 3052.403 MT / 3000 MT-per-day = 1.017468 days.
+  const rateTerm = {
+    allowanceBasis: "RATE",
+    allowance: "0",
+    allowanceUnit: "days",
+    allowanceRate: "3000",
+    commencementRule: "NOR_ACCEPTED",
+    turnTimeHours: null,
+    turnTimeTrigger: null,
+  };
+
+  it("computes allowed = actual quantity / rate", () => {
+    const r = computePortCall(
+      base({ term: rateTerm, actualQuantityMt: "3052.403" })
+    );
+    // 3052.403 / 3000 * 86400 = 87909.2064 s (= 1d 00h 25m 09s, doc's 1.017468 d)
+    expect(r.allowedSeconds).toBeCloseTo(87909.2064, 2);
+  });
+
+  it("refuses a rate-based term when no actual quantity is recorded", () => {
+    expect(() =>
+      computePortCall(base({ term: rateTerm, actualQuantityMt: null }))
+    ).toThrow(/actual cargo quantity/i);
   });
 });

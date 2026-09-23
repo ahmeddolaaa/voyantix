@@ -21,6 +21,7 @@ import {
   contractStoppageRules,
   holidays,
   shiftPerformances,
+  cargoPlans,
 } from "@/db/schema";
 import { and, asc, eq, gt, isNull } from "drizzle-orm";
 import type { TenantContext } from "@/lib/auth/session";
@@ -72,8 +73,10 @@ export async function loadPortCallCalcData(
 
   const [term] = await db
     .select({
+      allowanceBasis: contractLaytimeTerms.allowanceBasis,
       allowance: contractLaytimeTerms.allowance,
       allowanceUnit: contractLaytimeTerms.allowanceUnit,
+      allowanceRate: contractLaytimeTerms.allowanceRate,
       commencementRule: contractLaytimeTerms.commencementRule,
       turnTimeHours: contractLaytimeTerms.turnTimeHours,
       turnTimeTrigger: contractLaytimeTerms.turnTimeTrigger,
@@ -196,11 +199,33 @@ export async function loadPortCallCalcData(
     );
   const workedLocalDates = workedRows.map((w) => w.shiftDate);
 
+  // Total ACTUAL cargo quantity on this port call (MT), for a rate-based
+  // allowance. Only recorded actuals count; if none are recorded the total is
+  // null and a rate-based term refuses rather than guessing from planned qty.
+  const cargoRows = await db
+    .select({ actualQuantityMt: cargoPlans.actualQuantityMt })
+    .from(cargoPlans)
+    .where(
+      and(
+        eq(cargoPlans.portCallId, portCallId),
+        eq(cargoPlans.organizationId, ctx.organizationId)
+      )
+    );
+  const actuals = cargoRows
+    .map((r) => r.actualQuantityMt)
+    .filter((q): q is string => q != null && q.trim() !== "");
+  const actualQuantityMt =
+    actuals.length === 0
+      ? null
+      : String(actuals.reduce((sum, q) => sum + Number(q), 0));
+
   const data: PortCallCalcData = {
     timeZone: portCall.timeZone,
     term: {
+      allowanceBasis: term.allowanceBasis,
       allowance: term.allowance,
       allowanceUnit: term.allowanceUnit,
+      allowanceRate: term.allowanceRate,
       commencementRule: term.commencementRule,
       turnTimeHours: term.turnTimeHours,
       turnTimeTrigger: term.turnTimeTrigger,
@@ -215,6 +240,7 @@ export async function loadPortCallCalcData(
     stoppageRules,
     holidayDates,
     workedLocalDates,
+    actualQuantityMt,
   };
 
   return {

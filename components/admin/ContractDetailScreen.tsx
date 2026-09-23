@@ -54,8 +54,10 @@ type TermFormState = {
   portId: string;
   cargoId: string;
   ruleSetVersionId: string;
+  allowanceBasis: string;
   allowance: string;
   allowanceUnit: string;
+  allowanceRate: string;
   demurrageRate: string;
   despatchRate: string;
   despatchBasis: string;
@@ -69,8 +71,10 @@ const emptyTermForm: TermFormState = {
   portId: "",
   cargoId: "",
   ruleSetVersionId: "",
+  allowanceBasis: "FIXED",
   allowance: "",
   allowanceUnit: "",
+  allowanceRate: "",
   demurrageRate: "",
   despatchRate: "",
   despatchBasis: "",
@@ -247,8 +251,10 @@ export function ContractDetailScreen({
       portId: t.portId ?? "",
       cargoId: t.cargoId ?? "",
       ruleSetVersionId: t.ruleSetVersionId,
+      allowanceBasis: t.allowanceBasis ?? "FIXED",
       allowance: t.allowance,
       allowanceUnit: t.allowanceUnit,
+      allowanceRate: t.allowanceRate ?? "",
       demurrageRate: t.demurrageRate,
       despatchRate: t.despatchRate ?? "",
       despatchBasis: t.despatchBasis ?? "",
@@ -274,8 +280,10 @@ export function ContractDetailScreen({
       portId: termForm.portId || null,
       cargoId: termForm.cargoId || null,
       ruleSetVersionId: termForm.ruleSetVersionId,
+      allowanceBasis: termForm.allowanceBasis,
       allowance: termForm.allowance,
       allowanceUnit: termForm.allowanceUnit,
+      allowanceRate: termForm.allowanceRate || null,
       demurrageRate: termForm.demurrageRate,
       despatchRate: termForm.despatchRate || null,
       despatchBasis: termForm.despatchBasis || null,
@@ -299,8 +307,10 @@ export function ContractDetailScreen({
         function: termForm.function,
         portId: termForm.portId || null,
         cargoId: termForm.cargoId || null,
-        allowance: termForm.allowance.trim(),
-        allowanceUnit: termForm.allowanceUnit.trim(),
+        allowanceBasis: termForm.allowanceBasis,
+        allowance: termForm.allowanceBasis === "RATE" ? "0" : termForm.allowance.trim(),
+        allowanceUnit: termForm.allowanceBasis === "RATE" ? "days" : termForm.allowanceUnit.trim(),
+        allowanceRate: termForm.allowanceBasis === "RATE" ? termForm.allowanceRate.trim() : null,
         demurrageRate: termForm.demurrageRate.trim(),
         despatchRate: termForm.despatchRate.trim() || null,
         despatchBasis: termForm.despatchBasis.trim() || null,
@@ -604,14 +614,46 @@ export function ContractDetailScreen({
 
           <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>ALLOWANCE &amp; RATES</p>
           <div className="grid md:grid-cols-3 gap-x-6">
-            <Field label="Allowance" required>
-              {(a) => (<TextInput {...a} value={termForm.allowance} disabled={pending}
-                onChange={(e) => updateTermField("allowance", e.target.value)} placeholder="e.g. 5" />)}
+            <Field
+              label="Allowance basis"
+              required
+              description="Rate = quantity ÷ rate (e.g. 3000 MT/day). Fixed = a flat number of days/hours."
+            >
+              {(a) => (
+                <select
+                  {...a}
+                  value={termForm.allowanceBasis}
+                  disabled={pending}
+                  onChange={(e) => updateTermField("allowanceBasis", e.target.value)}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                  style={selectStyle}
+                >
+                  <option value="FIXED">Fixed</option>
+                  <option value="RATE">Rate (MT per day)</option>
+                </select>
+              )}
             </Field>
-            <Field label="Allowance unit" required>
-              {(a) => (<TextInput {...a} value={termForm.allowanceUnit} disabled={pending}
-                onChange={(e) => updateTermField("allowanceUnit", e.target.value)} placeholder="unit of allowance" />)}
-            </Field>
+            {termForm.allowanceBasis === "RATE" ? (
+              <Field
+                label="Rate (MT per day)"
+                required
+                description="Allowed time = actual cargo quantity ÷ this rate."
+              >
+                {(a) => (<TextInput {...a} value={termForm.allowanceRate} disabled={pending}
+                  onChange={(e) => updateTermField("allowanceRate", e.target.value)} placeholder="e.g. 3000" />)}
+              </Field>
+            ) : (
+              <>
+                <Field label="Allowance" required>
+                  {(a) => (<TextInput {...a} value={termForm.allowance} disabled={pending}
+                    onChange={(e) => updateTermField("allowance", e.target.value)} placeholder="e.g. 5" />)}
+                </Field>
+                <Field label="Allowance unit" required>
+                  {(a) => (<TextInput {...a} value={termForm.allowanceUnit} disabled={pending}
+                    onChange={(e) => updateTermField("allowanceUnit", e.target.value)} placeholder="days or hours" />)}
+                </Field>
+              </>
+            )}
             <Field label="Demurrage rate" required>
               {(a) => (<TextInput {...a} value={termForm.demurrageRate} disabled={pending}
                 onChange={(e) => updateTermField("demurrageRate", e.target.value)} placeholder="per day" />)}

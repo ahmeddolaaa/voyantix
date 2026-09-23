@@ -42,8 +42,10 @@ export type ContractLaytimeTermRow = {
   function: TermFunction;
   portId: string | null;
   cargoId: string | null;
+  allowanceBasis: string;
   allowance: string;
   allowanceUnit: string;
+  allowanceRate: string | null;
   demurrageRate: string;
   despatchRate: string | null;
   despatchBasis: string | null;
@@ -76,8 +78,12 @@ export type ContractLaytimeTermInput = {
   function: TermFunction;
   portId?: string | null;
   cargoId?: string | null;
+  /** "FIXED" (default) or "RATE". */
+  allowanceBasis?: string | null;
   allowance: string;
   allowanceUnit: string;
+  /** MT-per-day rate; required when allowanceBasis = RATE. */
+  allowanceRate?: string | null;
   demurrageRate: string;
   despatchRate?: string | null;
   despatchBasis?: string | null;
@@ -92,8 +98,10 @@ type ValidatedTerm = {
   function: TermFunction;
   portId: string | null;
   cargoId: string | null;
+  allowanceBasis: string;
   allowance: string;
   allowanceUnit: string;
+  allowanceRate: string | null;
   demurrageRate: string;
   despatchRate: string | null;
   despatchBasis: string | null;
@@ -118,10 +126,33 @@ function validateTermInput(
     return fail("VALIDATION_ERROR", "Function must be LOAD or DISCHARGE.");
   }
 
-  const allowance = (input.allowance ?? "").trim();
-  if (!NUMERIC.test(allowance)) {
-    return fail("VALIDATION_ERROR", "Allowance must be a number.");
+  const allowanceBasis = input.allowanceBasis === "RATE" ? "RATE" : "FIXED";
+
+  // A RATE term is settled from actual cargo quantity ÷ rate, so it needs a
+  // positive rate and leaves the fixed allowance neutral; a FIXED term needs a
+  // numeric allowance in a defined unit, exactly as before.
+  let allowance: string;
+  let allowanceUnit: string;
+  let allowanceRate: string | null;
+  if (allowanceBasis === "RATE") {
+    allowanceRate = (input.allowanceRate ?? "").trim();
+    if (!NUMERIC.test(allowanceRate) || Number(allowanceRate) <= 0) {
+      return fail("VALIDATION_ERROR", "Rate must be a positive number (MT per day).");
+    }
+    allowance = "0";
+    allowanceUnit = "days";
+  } else {
+    allowance = (input.allowance ?? "").trim();
+    if (!NUMERIC.test(allowance)) {
+      return fail("VALIDATION_ERROR", "Allowance must be a number.");
+    }
+    allowanceUnit = (input.allowanceUnit ?? "").trim();
+    if (allowanceUnit === "") {
+      return fail("VALIDATION_ERROR", "Allowance unit is required.");
+    }
+    allowanceRate = null;
   }
+
   const demurrageRate = (input.demurrageRate ?? "").trim();
   if (!NUMERIC.test(demurrageRate)) {
     return fail("VALIDATION_ERROR", "Demurrage rate must be a number.");
@@ -136,10 +167,6 @@ function validateTermInput(
     return fail("VALIDATION_ERROR", "Turn time hours must be a number.");
   }
 
-  const allowanceUnit = (input.allowanceUnit ?? "").trim();
-  if (allowanceUnit === "") {
-    return fail("VALIDATION_ERROR", "Allowance unit is required.");
-  }
   const commencementRule = (input.commencementRule ?? "").trim();
   if (commencementRule === "") {
     return fail("VALIDATION_ERROR", "Commencement rule is required.");
@@ -154,8 +181,10 @@ function validateTermInput(
     function: input.function,
     portId: trimOrNull(input.portId),
     cargoId: trimOrNull(input.cargoId),
+    allowanceBasis,
     allowance,
     allowanceUnit,
+    allowanceRate,
     demurrageRate,
     despatchRate,
     despatchBasis: trimOrNull(input.despatchBasis),
@@ -309,8 +338,10 @@ export async function createContractLaytimeTerm(
           function: v.function,
           portId: v.portId,
           cargoId: v.cargoId,
+          allowanceBasis: v.allowanceBasis,
           allowance: v.allowance,
           allowanceUnit: v.allowanceUnit,
+          allowanceRate: v.allowanceRate,
           demurrageRate: v.demurrageRate,
           despatchRate: v.despatchRate,
           despatchBasis: v.despatchBasis,
@@ -399,8 +430,10 @@ export async function updateContractLaytimeTerm(
         function: v.function,
         portId: v.portId,
         cargoId: v.cargoId,
+        allowanceBasis: v.allowanceBasis,
         allowance: v.allowance,
         allowanceUnit: v.allowanceUnit,
+        allowanceRate: v.allowanceRate,
         demurrageRate: v.demurrageRate,
         despatchRate: v.despatchRate,
         despatchBasis: v.despatchBasis,

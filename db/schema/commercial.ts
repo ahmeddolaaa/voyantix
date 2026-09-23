@@ -257,8 +257,19 @@ export const contractLaytimeTerms = pgTable(
     cargoId: uuid("cargo_id"),
 
     // commercial values
+    //
+    // allowanceBasis decides how the allowed laytime is obtained:
+    //   FIXED — the allowance value below, in allowanceUnit (hours/days).
+    //   RATE  — computed by the engine as actual cargo quantity ÷ allowanceRate
+    //           (a MT-per-day rate, e.g. "3000 MT PWWD"). The weather/SHEX part
+    //           of such a rate is the counting axis, not the allowance number.
+    // The `allowance`/`allowanceUnit` columns stay required so FIXED terms and
+    // all existing rows are unchanged; a RATE term sets them to a neutral 0.
+    allowanceBasis: text("allowance_basis").notNull().default("FIXED"),
     allowance: numeric("allowance").notNull(),
     allowanceUnit: text("allowance_unit").notNull(),
+    /** MT per day, used only when allowanceBasis = RATE. */
+    allowanceRate: numeric("allowance_rate"),
     demurrageRate: numeric("demurrage_rate").notNull(),
     despatchRate: numeric("despatch_rate"),
     despatchBasis: text("despatch_basis"),

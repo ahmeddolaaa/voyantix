@@ -50,3 +50,23 @@ export function allowanceToSeconds(value: string, unit: string): number {
       );
   }
 }
+
+/**
+ * Allowed laytime for a RATE-based term: actual cargo quantity ÷ a MT-per-day
+ * rate, in seconds. This is the common real-world basis ("3000 MT PWWD" →
+ * quantity / 3000 days). WHICH of those days actually count (weekends,
+ * holidays, weather) is the classification pipeline's job, not this number;
+ * the rate here is a plain per-running-day rate.
+ */
+export function allowedSecondsFromRate(
+  quantityMt: number,
+  ratePerDay: number
+): number {
+  if (!(quantityMt > 0) || !(ratePerDay > 0)) {
+    throw new CalculationRefused(
+      "ALLOWANCE_RATE_INVALID",
+      "Cannot calculate: a rate-based allowance needs a positive cargo quantity and a positive rate."
+    );
+  }
+  return (quantityMt / ratePerDay) * SECONDS_PER_DAY;
+}

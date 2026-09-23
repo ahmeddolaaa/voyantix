@@ -38,7 +38,8 @@ import {
 } from "../classify";
 import { type Balance } from "../accumulate";
 import { type TurnTime } from "../turn-time";
-import { allowanceToSeconds } from "../units";
+import { allowanceToSeconds, allowedSecondsFromRate } from "../units";
+import { CalculationRefused } from "../refuse";
 import { getLocalParts } from "../timezone";
 import { toLocalDateKey } from "../calendar-classification";
 
@@ -69,8 +70,12 @@ export type LoadedRuleSetVersion = {
 };
 
 export type LoadedTerm = {
+  /** "FIXED" | "RATE" — how the allowed laytime is obtained. */
+  allowanceBasis: string;
   allowance: string;
   allowanceUnit: string;
+  /** MT-per-day rate; used only when allowanceBasis = RATE. */
+  allowanceRate: string | null;
   commencementRule: string;
   turnTimeHours: string | null;
   turnTimeTrigger: string | null;
@@ -87,6 +92,9 @@ export type PortCallCalcData = {
   holidayDates: string[];
   /** Local YYYY-MM-DD dates on which cargo moved (F24, EIU used-set). */
   workedLocalDates: string[];
+  /** Total actual cargo quantity (MT) for the port call; null if none recorded.
+      Required only for a RATE-based allowance. */
+  actualQuantityMt: string | null;
 };
 
 export type PortCallComputation = {
@@ -141,10 +149,30 @@ export function computePortCall(data: PortCallCalcData): PortCallComputation {
     data.stoppageRules.map((r) => [r.stoppageReasonId, r.countability])
   );
 
-  const allowedSeconds = allowanceToSeconds(
-    data.term.allowance,
-    data.term.allowanceUnit
-  );
+  let allowedSeconds: number;
+  if (data.term.allowanceBasis === "RATE") {
+    if (data.term.allowanceRate == null) {
+      throw new CalculationRefused(
+        "ALLOWANCE_RATE_MISSING",
+        "Cannot calculate: this term's allowance is rate-based but no rate is set."
+      );
+    }
+    if (data.actualQuantityMt == null) {
+      throw new CalculationRefused(
+        "ALLOWANCE_QUANTITY_MISSING",
+        "Cannot calculate: this term's allowance is rate-based, but no actual cargo quantity has been recorded for this port call."
+      );
+    }
+    allowedSeconds = allowedSecondsFromRate(
+      Number(data.actualQuantityMt),
+      Number(data.term.allowanceRate)
+    );
+  } else {
+    allowedSeconds = allowanceToSeconds(
+      data.term.allowance,
+      data.term.allowanceUnit
+    );
+  }
 
   const workedSet = new Set(data.workedLocalDates);
   const didWorkOccur = (interval: ClassifiedInterval): boolean => {
