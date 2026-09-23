@@ -19,8 +19,10 @@
 
 import {
   determineCommencement,
+  applyCommencementTimeRule,
   resolveRequiredEvent,
   type EngineEvent,
+  type CommencementTimeRule,
 } from "./commencement";
 import { resolveTurnTime, type TurnTime } from "./turn-time";
 import { CalculationRefused } from "./refuse";
@@ -46,12 +48,26 @@ export function resolveCandidateWindow(
   events: EngineEvent[],
   commencementRule: string,
   turnTimeHours: number | null,
-  turnTimeTrigger: string | null
+  turnTimeTrigger: string | null,
+  timeZone?: string,
+  commencementTimeRule: CommencementTimeRule = "AT_EVENT"
 ): CandidateWindow {
   const turnTime = resolveTurnTime(events, turnTimeHours, turnTimeTrigger);
 
   let start: Date;
-  if (turnTime !== null) {
+  if (commencementTimeRule !== "AT_EVENT") {
+    // A time-of-day commencement rule replaces both the raw event instant and
+    // any turn time — it is itself the grace mechanism that decides when
+    // counting begins from the basis event.
+    if (timeZone === undefined) {
+      throw new CalculationRefused(
+        "COMMENCEMENT_RULE_NEEDS_ZONE",
+        "Cannot calculate: a time-of-day commencement rule requires the port call timezone."
+      );
+    }
+    const basis = determineCommencement(events, commencementRule);
+    start = applyCommencementTimeRule(basis, commencementTimeRule, timeZone);
+  } else if (turnTime !== null) {
     // Counting begins at the end of turn time (trigger + duration).
     start = turnTime.endsAt;
   } else {
@@ -77,6 +93,8 @@ export type CalcFromEventsInput = Omit<PortCallCalcInput, "window"> & {
   commencementRule: string;
   turnTimeHours: number | null;
   turnTimeTrigger: string | null;
+  /** Time-of-day commencement rule; defaults to AT_EVENT (prior behaviour). */
+  commencementTimeRule?: CommencementTimeRule;
 };
 
 export type CalcFromEventsResult = PortCallCalcResult & {
@@ -96,7 +114,9 @@ export function calculateFromEvents(
     input.events,
     input.commencementRule,
     input.turnTimeHours,
-    input.turnTimeTrigger
+    input.turnTimeTrigger,
+    input.timeZone,
+    input.commencementTimeRule ?? "AT_EVENT"
   );
 
   const result = calculatePortCall({
