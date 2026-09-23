@@ -21,7 +21,7 @@ export const COMMENCEMENT_TIME_RULES = [
   { value: "AT_EVENT", label: "At the event time" },
   {
     value: "MORNING_NOR_1400",
-    label: "If before 12:00 → starts 14:00 same day",
+    label: "12:00 rule (14:00 / next WD 08:00)",
   },
 ] as const;
 

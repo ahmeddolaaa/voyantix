@@ -278,7 +278,9 @@ export const contractLaytimeTerms = pgTable(
     commencementRule: text("commencement_rule").notNull(),
     // How the commencement event maps to when counting starts:
     //   AT_EVENT          — at the event instant (or after turn time, if set)
-    //   MORNING_NOR_1400  — event before 12:00 local → 14:00 local same day
+    //   MORNING_NOR_1400  — amended GENCON 6(c): event up to and including
+    //                       12:00 local → 14:00 same day; after 12:00 → 08:00
+    //                       local on the next working day (rule-set calendar)
     commencementTimeRule: text("commencement_time_rule").notNull().default("AT_EVENT"),
     // "Once on demurrage, always on demurrage": after laytime expires, the
     // laytime exceptions (excluded days, holidays, stoppages) stop applying and

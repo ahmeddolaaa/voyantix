@@ -41,7 +41,10 @@ import { type Balance } from "../accumulate";
 import { type TurnTime } from "../turn-time";
 import { allowanceToSeconds, allowedSecondsFromRate } from "../units";
 import { CalculationRefused } from "../refuse";
-import { type CommencementTimeRule } from "../commencement";
+import {
+  type CommencementTimeRule,
+  type CommencementCalendar,
+} from "../commencement";
 import { getLocalParts } from "../timezone";
 import { toLocalDateKey } from "../calendar-classification";
 
@@ -89,7 +92,7 @@ export type LoadedTerm = {
   /** MT-per-day rate; used only when allowanceBasis = RATE. */
   allowanceRate: string | null;
   commencementRule: string;
-  /** "AT_EVENT" | "MORNING_NOR_1400" — see commencement.ts. */
+  /** "AT_EVENT" | "MORNING_NOR_1400" (amended GENCON 6(c)) — see commencement.ts. */
   commencementTimeRule: string;
   turnTimeHours: string | null;
   turnTimeTrigger: string | null;
@@ -135,6 +138,14 @@ function commencementTimeRuleOf(term: LoadedTerm): CommencementTimeRule {
   );
 }
 
+/** The rule set's calendar, for a commencement rule that needs a "next working day". */
+function calendarOf(data: PortCallCalcData): CommencementCalendar {
+  return {
+    excludedWeekdays: data.version.excludedWeekdays,
+    holidayDates: new Set(data.holidayDates),
+  };
+}
+
 /** Splits loaded events into the engine's commencement/window and weather channels. */
 function partitionEvents(events: LoadedEvent[]): {
   engineEvents: EngineEvent[];
@@ -167,7 +178,9 @@ export function computePortCall(data: PortCallCalcData): PortCallComputation {
     turnTimeHours,
     data.term.turnTimeTrigger,
     data.timeZone,
-    commencementTimeRuleOf(data.term)
+    commencementTimeRuleOf(data.term),
+    undefined,
+    calendarOf(data)
   );
 
   const stoppages: StoppageSpan[] = data.stoppages.map((s) => ({
@@ -309,7 +322,8 @@ export function computeProvisionalStatus(
     data.term.commencementRule,
     turnTime,
     data.timeZone,
-    commencementTimeRuleOf(data.term)
+    commencementTimeRuleOf(data.term),
+    calendarOf(data)
   );
 
   // Counting has not begun as of this instant: nothing used yet.

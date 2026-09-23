@@ -247,6 +247,40 @@ describe("computePortCall — commencement time rule from the term", () => {
     expect(r.window.start.toISOString()).toBe("2026-07-06T05:00:00.000Z");
   });
 
+  it("MORNING_NOR_1400 after 12:00 starts 08:00 next working day from the rule set's calendar", () => {
+    // NOR Thu 02/07/26 15:30 Cairo; Friday excluded, Sat 04/07 a holiday → Sun 05/07 08:00.
+    const afterNoon = [
+      { semantic: "NOR_TENDERED", occurredAt: D("2026-07-02T12:30:00Z") }, // 15:30 Cairo
+      { semantic: "OPS_COMPLETED", occurredAt: D("2026-07-07T21:00:00Z") },
+    ];
+    const r = computePortCall(
+      base({
+        term: term("MORNING_NOR_1400"),
+        events: afterNoon,
+        version: { excludedWeekdays: [5], eiuApplies: true, weatherApplies: false },
+        holidayDates: ["2026-07-04"],
+      })
+    );
+    expect(r.window.start.toISOString()).toBe("2026-07-05T05:00:00.000Z"); // Sun 08:00 Cairo
+  });
+
+  it("provisional status uses the same after-noon commencement", () => {
+    const afterNoon = [
+      { semantic: "NOR_TENDERED", occurredAt: D("2026-07-02T12:30:00Z") },
+    ];
+    const s = computeProvisionalStatus(
+      base({
+        term: term("MORNING_NOR_1400"),
+        events: afterNoon,
+        version: { excludedWeekdays: [5], eiuApplies: true, weatherApplies: false },
+        holidayDates: [],
+      }),
+      D("2026-07-04T09:00:00Z") // Sat 12:00 Cairo
+    );
+    expect(s.window.start.toISOString()).toBe("2026-07-04T05:00:00.000Z"); // Sat 08:00 Cairo
+    expect(s.usedSeconds).toBe(4 * 3600);
+  });
+
   it("refuses an unrecognised rule rather than guessing", () => {
     expect(() => computePortCall(base({ term: term("SOMETIMES"), events }))).toThrow(
       CalculationRefused

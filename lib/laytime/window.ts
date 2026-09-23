@@ -23,6 +23,7 @@ import {
   resolveRequiredEvent,
   type EngineEvent,
   type CommencementTimeRule,
+  type CommencementCalendar,
 } from "./commencement";
 import { resolveTurnTime, type TurnTime } from "./turn-time";
 import { CalculationRefused } from "./refuse";
@@ -54,7 +55,9 @@ export function deriveCommencementStart(
   commencementRule: string,
   turnTime: TurnTime | null,
   timeZone?: string,
-  commencementTimeRule: CommencementTimeRule = "AT_EVENT"
+  commencementTimeRule: CommencementTimeRule = "AT_EVENT",
+  /** The rule set's calendar; needed when a time rule resolves a "next working day". */
+  calendar?: CommencementCalendar
 ): Date {
   if (commencementTimeRule !== "AT_EVENT") {
     // A time-of-day commencement rule replaces both the raw event instant and
@@ -67,7 +70,7 @@ export function deriveCommencementStart(
       );
     }
     const basis = determineCommencement(events, commencementRule);
-    return applyCommencementTimeRule(basis, commencementTimeRule, timeZone);
+    return applyCommencementTimeRule(basis, commencementTimeRule, timeZone, calendar);
   }
   if (turnTime !== null) {
     // Counting begins at the end of turn time (trigger + duration).
@@ -86,7 +89,9 @@ export function resolveCandidateWindow(
   commencementTimeRule: CommencementTimeRule = "AT_EVENT",
   /** Provisional running view: count up to this instant instead of the
       OPS_COMPLETED event (used before operations complete). */
-  windowEndOverride?: Date
+  windowEndOverride?: Date,
+  /** The rule set's calendar; needed when a time rule resolves a "next working day". */
+  calendar?: CommencementCalendar
 ): CandidateWindow {
   const turnTime = resolveTurnTime(events, turnTimeHours, turnTimeTrigger);
 
@@ -95,7 +100,8 @@ export function resolveCandidateWindow(
     commencementRule,
     turnTime,
     timeZone,
-    commencementTimeRule
+    commencementTimeRule,
+    calendar
   );
 
   // Counting stops at operations complete — or at the provisional as-of instant.
@@ -142,7 +148,9 @@ export function calculateFromEvents(
     input.turnTimeHours,
     input.turnTimeTrigger,
     input.timeZone,
-    input.commencementTimeRule ?? "AT_EVENT"
+    input.commencementTimeRule ?? "AT_EVENT",
+    undefined,
+    { excludedWeekdays: input.excludedWeekdays, holidayDates: input.holidayDates }
   );
 
   const result = calculatePortCall({

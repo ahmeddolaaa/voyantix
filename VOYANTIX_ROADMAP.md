@@ -28,7 +28,7 @@
 
 ### Where things live
 - **Repo:** `github.com/ahmeddolaaa/voyantix`, branch **`rebuild`** (the only working branch; `main` is an old checkpoint `7abb42a`).
-- **Latest commit:** `8457d9a` — full suite **459 tests green**, typecheck clean.
+- **Latest commit:** see `git log -1` on `rebuild` (the commit that added this line: amended GENCON 6(c) commencement) — full suite **470 tests green**, typecheck clean.
 - **Stack:** Next.js 16.3.3 (Turbopack) · React 19.2.8 · Drizzle ORM · PostgreSQL 16 · Vitest · tsx. Node ≥ 20.
 - **Migrations:** `0000`–`0018` (19 files). Latest three: `0016` term `once_on_demurrage`, `0017` stoppage-rule `excluded_on_demurrage`, `0018` term `commencement_time_rule`.
 - **Production:** Railway — `https://voyantix-production.up.railway.app`, managed Postgres, deploys automatically from `origin/rebuild`. The start command (set in the Railway UI, not in the repo) runs `db:migrate`, then `db:bootstrap`, then `next start`. After a deploy, hard-refresh (Ctrl+Shift+R) — the browser cache has shown the old UI before.
@@ -60,27 +60,32 @@ Claude works in its own sandbox and cannot push. Delivery is a **git bundle**:
   - **Once on demurrage, always on demurrage (AN-2)** — term flag. After the exact expiry instant, excluded days, holidays and stoppages stop interrupting time. **Exceptions** per stoppage reason ("still excluded on demurrage", e.g. breakdown of vessel). Calendar exceptions cannot be excepted (all references lift them).
   - **Stoppage rules screen** — per contract term ("Stoppage rules" button). Before this, NO UI existed, so any calc meeting an un-seeded stoppage reason was refused.
   - **Bounded term fields** — commencement event, commencement time rule, turn-time trigger, allowance unit, despatch basis are dropdowns from `lib/laytime/term-vocabulary.ts`; the server validates against the same list.
-  - **Commencement time rule in UI** — `MORNING_NOR_1400`: event before 12:00 local → laytime 14:00 same day. Mutually exclusive with turn time.
+  - **Commencement time rule in UI** — `MORNING_NOR_1400` (label "12:00 rule (14:00 / next WD 08:00)"). Mutually exclusive with turn time.
+  - **Amended GENCON 94 clause 6(c) — both branches** — NOR up to AND including 12:00 local → laytime 14:00 same day; NOR after 12:00 → 08:00 local on the **next working day** (first following day that is not an excluded weekday of the rule set and not a holiday of its calendar). Stored value `MORNING_NOR_1400` kept (no migration); the after-noon branch used to be refused, so no earlier result changes. Refuses `COMMENCEMENT_RULE_NEEDS_CALENDAR` / `COMMENCEMENT_NO_WORKING_DAY` rather than guessing. Browser-verified: NOR Thu 25/06 15:30, Friday excluded → counting from Sat 27/06 08:00 (live status and settled calculation both).
   - **Fixes:** term versioning now copies stoppage rules to the new version (they were silently dropped); terms list shows the new version after editing a frozen term.
 
 ### Contract semantics learned from Adel's reference documents
 Source files (uploaded 2026-09): MY FELLAS NOR/SOF loading, MY FELLAS laytime calc loading + discharge, MV YUFIX i-Magellan calc, SOF_0001, departure document, and four i-Magellan timesheets (test_1–4). Each rule below is **evidence**, not invention; customer VALUES stay configuration.
 - **Rate allowance:** "3000 MT PWWD FSHEX EIU" → allowed = cargo ÷ rate (3052.403 / 3000 = 1.017468 days = 1d 00h 25m). Golden-tested.
 - **Commencement 12:00/14:00:** "If NOR before 12:00 → time counts 14:00 same day" (MV YUFIX; MY FELLAS NOR accepted 08:00 → laytime 14:00).
+- **Commencement clause text (2026-09-23):** GENCON 1994 clause 6(c), amended by Adel's charter party — printed 13:00 → **14:00**, printed 06:00 → **08:00**: "Laytime … shall commence at 14.00 hours, if notice of readiness is given up to and including 12.00 hours, and at 08.00 hours next working day if notice given during office hours after 12.00 hours." Same clause: laytime "weather permitting, Sundays and holidays excepted, unless used, in which event time used shall count"; "Time used before commencement of laytime shall count" (not modelled — see OPEN ITEMS).
 - **Once on demurrage:** MY FELLAS loading + discharge and MV YUFIX count every period after expiry at 100%, including Fri/weekend exceptions and all SOF stoppages (labour breaks, port closure, Friday prayer). Golden test reproduces MY FELLAS loading exactly: used 4d 21h 15m, 3.867949 days demurrage, expiry Wed 24/06 14:25.
 - **Other CP pattern (test_1–4):** NOR tendered any time → **NOR accepted next working day 08:00** → 24 h turn time → counting. Weekend Thu 14:00 → Sun 08:00 not to count; shifting to berth / master's instruction / bad weather not to count. Already expressible: commences from NOR accepted + turn time 24 h from NOR accepted.
 - **Non-reversible** laytime per port (MY FELLAS, YUFIX). Despatch basis **WTS** (working time saved).
 
 ### OPEN ITEMS — pick up here (in this order unless Adel says otherwise)
-1. **NOR after 12:00 under the 12:00/14:00 rule** — currently REFUSED (`COMMENCEMENT_AFTER_NOON_UNDEFINED`). Adel says the answer was extracted from a charter party in an earlier part of the 2026-09-23 conversation, but that part was lost to summarisation and the clause is not in any uploaded file. **Ask Adel once for the clause text, then implement** (`lib/laytime/commencement.ts` `applyCommencementTimeRule`).
+1. ~~NOR after 12:00 under the 12:00/14:00 rule~~ — **DONE 2026-09-23** (amended GENCON 6(c), see "What the product does today").
 2. **Overlapping stoppages in real SOFs** — MY FELLAS SOF records a port closure (25/06 20:00–26/06 01:00) with a labour break (21:55–23:20) inside it. The DB forbids overlapping stoppages (`stoppages_no_overlap`), so committing that SOF from the ingestion review will fail on those rows. Needs a product decision on representation (e.g. split/merge on commit, or allow overlap with a precedence rule).
 3. **Despatch calculation** — `lib/laytime/settlement.ts` still refuses any despatch (`DESPATCH_BASIS_WITHHELD`). Basis can now be stored (WTS/ATS); WTS computation not built. test_2 has a real despatch example (3d 11h 26m saved × $4,375 → $15,211.76).
 4. **Vision-LLM extraction** for SOF ingestion (Gemini: free tier trains on data → paid no-training tier for real customer documents). Review screen + commit already exist.
 5. **Input timezone** — `datetime-local` inputs still mean browser time, not port time (see Monitored issues).
 6. Still withheld: weather counting (B3/WWD), CountsAgainstOwner stoppages, pooled settlement rate (B7), B6/B9 reporting.
+7. **"Time used before commencement of laytime shall count"** (GENCON 6(c) last sentence) — not modelled: today nothing before the commencement instant counts. Needs evidence of how "time used" is recorded (e.g. OPS_COMMENCED before commencement) before building.
 
 ### Known assumptions and verification gaps (from the 2026-09-23 self-audit — still open)
 - **PWWD treated as running time minus configured exclusions.** "PWWD" (per weather working day) implies weather days do not count; weather counting is still withheld (B3) — a rule set with `weatherApplies` and weather events REFUSES. Confirm the intended PWWD meaning with Adel before relying on it for weather-affected calls.
+- **GENCON 6(c) "during office hours":** the engine takes the recorded NOR instant as given — any time after 12:00 (including evening/night) → 08:00 next working day. Whether a notice outside office hours is valid (and deemed given at the next office opening instead) is NOT assessed; office hours are not configured anywhere. Confirm with Adel if a real call hits it.
+- **"Next working day"** = next local day that is not an excluded weekday and not a holiday of the rule set's calendar (holidays only count when the rule set excludes holidays). A same-day 14:00 start on an excluded day is left to the calendar stage, which excludes that time anyway.
 - **Multi-cargo + rate:** a RATE term sums ALL actual cargo quantities on the port call and divides by ONE rate. Charter parties with different rates per cargo/grade are not modelled.
 - **No full claim verified end to end through the app against a real document.** What IS verified: engine golden tests (MY FELLAS loading reproduced exactly), the live status/OODAOD/exceptions on demo data in the browser. Next milestone should be: import a real SOF → configure the real term → calculate → statement, and compare to Adel's calculation.
 - **SOF commit mapping** (`lib/actions/commit-extraction.ts`): events map to event types by engine semantic; stoppages map to stoppage reasons by **best-effort name match** (unmatched rows are skipped and reported); local SOF times are converted with the port call's timezone (`instantFromLocal`).
@@ -264,7 +269,7 @@ The identifiers and their target phase are known; their **semantics are delibera
 
 | # | Rule (identity only) | Belongs to | Data structure that must exist first |
 |---|---|---|---|
-| B1 | Commencement basis | Phase 6 | ✅ bounded event dropdown + `commencementTimeRule` (AT_EVENT / MORNING_NOR_1400). NOR after 12:00 under the 14:00 rule still refused — see OPEN ITEMS |
+| B1 | Commencement basis | Phase 6 | ✅ bounded event dropdown + `commencementTimeRule` (AT_EVENT / MORNING_NOR_1400 = amended GENCON 6(c): ≤12:00 → 14:00 same day, after 12:00 → 08:00 next working day) |
 | B2 | Turn time trigger/semantics | Phase 6 | ✅ hours + trigger event (bounded); exclusive with the 14:00 rule |
 | B3 | WWD weather determination | Phase 6 | `weatherApplies` on RuleSetVersion; weather events |
 | B4 | Holiday precedence (port calendar vs contract list) | Phase 6 | HolidayCalendar + RuleSetVersion.holidayCalendarId |
@@ -339,6 +344,7 @@ Cross-checked against handoff, architecture, frozen decisions, prior implementat
 | 2026-09-23 | Live provisional status (`3994379`, `81038e8`): reference-only running meter for ACTIVE port calls, planned qty until actual exists, window end = now | Product Owner request | 8 | milestone | Not the settlement; labelled PROVISIONAL |
 | 2026-09-23 | AN-2 CLOSED — once on demurrage, always on demurrage + per-stoppage-reason exceptions (`95d6238`, migrations 0016–0017). Stoppage rules UI added (none existed). Fix: term versioning now copies stoppage rules | Adel's documents + PO request | 6/7/8 | milestone | Golden test reproduces MY FELLAS loading exactly |
 | 2026-09-23 | Bounded term vocabulary (`8457d9a`, migration 0018): commencement event, commencement time rule, turn-time trigger, allowance unit, despatch basis are dropdowns validated server-side | Self-audit | 3/8 | milestone | Free text the engine would refuse is rejected at save |
+| 2026-09-23 | NOR-after-12:00 CLOSED: `MORNING_NOR_1400` now implements amended GENCON 94 cl. 6(c) — ≤12:00 (inclusive) → 14:00 same day; after 12:00 → 08:00 next working day from the rule set's calendar (excluded weekdays + holidays). Kept the stored value (no migration); prior refusals become results, no computed result changes. 470 tests, browser-verified | Clause text supplied by Adel (GENCON 6(c) with 13→14, 06→08) | 6/8 | milestone | Open: office-hours validity, "time used before commencement shall count" |
 | 2026-09-23 | Session context was summarised once; the NOR-after-12:00 clause Adel had given was lost. Roadmap CURRENT STATE rewritten as the handoff so a fresh session starts from the repo, not memory | Session | — | process | Start the next session by reading CURRENT STATE |
 
 ---

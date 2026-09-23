@@ -770,7 +770,7 @@ export function ContractDetailScreen({
               required
               description={
                 termForm.commencementTimeRule === "MORNING_NOR_1400"
-                  ? "An event after 12:00 is not defined by this rule — such a call is refused, not guessed."
+                  ? "Amended GENCON 6(c): up to and including 12:00 → 14:00 same day; after 12:00 → 08:00 next working day (skips the rule set's excluded weekdays and holidays)."
                   : undefined
               }
             >

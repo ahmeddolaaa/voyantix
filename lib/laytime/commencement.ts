@@ -113,36 +113,112 @@ export function determineCommencement(
  *
  *   AT_EVENT          — laytime commences at the basis event instant itself
  *                       (the default; preserves the pre-existing behaviour).
- *   MORNING_NOR_1400  — "if the notice is tendered before noon, laytime
- *                       commences at 14:00 local the same day". Evidenced by
- *                       the real MY FELLAS / YUFIX calculations
- *                       ("If NOR before 12:00 time counts 14:00 same day").
- *                       Only the before-noon branch is defined; a notice at or
- *                       after noon is a withheld semantic and is refused.
+ *   MORNING_NOR_1400  — the GENCON 1994 clause 6(c) convention as amended in
+ *                       Adel's charter party (printed 13:00 → 14:00, printed
+ *                       06:00 → 08:00):
+ *                         - notice given up to AND INCLUDING 12:00 local →
+ *                           laytime commences 14:00 local the same day;
+ *                         - notice given after 12:00 local → laytime
+ *                           commences 08:00 local on the NEXT WORKING DAY.
+ *                       Evidence: the clause text (supplied 2026-09-23) plus
+ *                       the MY FELLAS / YUFIX calculations ("If NOR before
+ *                       12:00 time counts 14:00 same day"). The stored value
+ *                       keeps its original name so existing terms need no
+ *                       migration; before this, the after-noon branch was
+ *                       refused, so no previously computed result changes.
+ *
+ * "Working day" is read from the rule set's own calendar: a local day that is
+ * neither an excluded weekday nor a holiday date. The clause's "during office
+ * hours" condition is about whether the notice was validly given; the engine
+ * takes the recorded notice instant as given and does not assess office hours.
  */
 export type CommencementTimeRule = "AT_EVENT" | "MORNING_NOR_1400";
 
+/** The local clock times of the amended clause 6(c). Fixed by the rule value. */
+const NOON_CUTOFF = { hour: 12, minute: 0 };
+const SAME_DAY_START_HOUR = 14;
+const NEXT_WORKING_DAY_START_HOUR = 8;
+
+/** Guard against a calendar with no working day at all (e.g. every weekday excluded). */
+const MAX_WORKING_DAY_SEARCH = 366;
+
+/** The calendar a "next working day" is resolved against. */
+export type CommencementCalendar = {
+  /** Excluded weekdays (0=Sun … 6=Sat), from the rule set. */
+  excludedWeekdays: readonly number[];
+  /** Holiday local dates (YYYY-MM-DD) that the rule set excludes. */
+  holidayDates: ReadonlySet<string>;
+};
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/**
+ * The first local calendar day strictly after (year, month, day) that is a
+ * working day under `calendar`. Pure calendar arithmetic — no zone involved.
+ */
+function nextWorkingDay(
+  year: number,
+  month: number,
+  day: number,
+  calendar: CommencementCalendar
+): { year: number; month: number; day: number } {
+  for (let k = 1; k <= MAX_WORKING_DAY_SEARCH; k++) {
+    const d = new Date(Date.UTC(year, month - 1, day + k));
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth() + 1;
+    const dd = d.getUTCDate();
+    const key = `${y}-${pad2(m)}-${pad2(dd)}`;
+    if (calendar.excludedWeekdays.includes(d.getUTCDay())) continue;
+    if (calendar.holidayDates.has(key)) continue;
+    return { year: y, month: m, day: dd };
+  }
+  throw new CalculationRefused(
+    "COMMENCEMENT_NO_WORKING_DAY",
+    "Cannot calculate: the rule set's calendar has no working day to start laytime on."
+  );
+}
+
 /**
  * Applies the commencement time-of-day rule to the basis-event instant,
- * returning when counting begins. Pure; the zone is passed in explicitly.
+ * returning when counting begins. Pure; the zone and calendar are passed in.
+ *
+ * `calendar` is needed only for the after-noon branch; if it is required and
+ * not supplied the calculation is refused rather than assuming a calendar.
  */
 export function applyCommencementTimeRule(
   basisInstant: Date,
   rule: CommencementTimeRule,
-  timeZone: string
+  timeZone: string,
+  calendar?: CommencementCalendar
 ): Date {
   if (rule === "AT_EVENT") return basisInstant;
 
-  // MORNING_NOR_1400
+  // MORNING_NOR_1400 — amended GENCON 6(c)
   const p = getLocalParts(basisInstant, timeZone);
-  if (p.hour >= 12) {
-    throw new CalculationRefused(
-      "COMMENCEMENT_AFTER_NOON_UNDEFINED",
-      "Cannot calculate: this commencement rule is defined only for a notice tendered before noon; the at/after-noon basis is not defined for this term."
+  // "Up to and including 12.00 hours" — read at the minute precision the
+  // clause and SOFs are written in, so 12:00 (any seconds) is still morning.
+  const atOrBeforeNoon =
+    p.hour < NOON_CUTOFF.hour ||
+    (p.hour === NOON_CUTOFF.hour && p.minute === NOON_CUTOFF.minute);
+
+  if (atOrBeforeNoon) {
+    return instantFromLocal(
+      { year: p.year, month: p.month, day: p.day, hour: SAME_DAY_START_HOUR, minute: 0, second: 0 },
+      timeZone
     );
   }
+
+  if (calendar === undefined) {
+    throw new CalculationRefused(
+      "COMMENCEMENT_RULE_NEEDS_CALENDAR",
+      "Cannot calculate: a notice given after 12:00 starts laytime on the next working day, which needs the rule set's calendar."
+    );
+  }
+  const next = nextWorkingDay(p.year, p.month, p.day, calendar);
   return instantFromLocal(
-    { year: p.year, month: p.month, day: p.day, hour: 14, minute: 0, second: 0 },
+    { ...next, hour: NEXT_WORKING_DAY_START_HOUR, minute: 0, second: 0 },
     timeZone
   );
 }
