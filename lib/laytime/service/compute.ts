@@ -41,6 +41,7 @@ import { type Balance } from "../accumulate";
 import { type TurnTime } from "../turn-time";
 import { allowanceToSeconds, allowedSecondsFromRate } from "../units";
 import { CalculationRefused } from "../refuse";
+import { type CommencementTimeRule } from "../commencement";
 import { getLocalParts } from "../timezone";
 import { toLocalDateKey } from "../calendar-classification";
 
@@ -88,6 +89,8 @@ export type LoadedTerm = {
   /** MT-per-day rate; used only when allowanceBasis = RATE. */
   allowanceRate: string | null;
   commencementRule: string;
+  /** "AT_EVENT" | "MORNING_NOR_1400" — see commencement.ts. */
+  commencementTimeRule: string;
   turnTimeHours: string | null;
   turnTimeTrigger: string | null;
   /** "Once on demurrage, always on demurrage" clause. */
@@ -122,6 +125,16 @@ export type PortCallComputation = {
   allowedSeconds: number;
 };
 
+/** The term's commencement time rule; anything unrecognised is refused. */
+function commencementTimeRuleOf(term: LoadedTerm): CommencementTimeRule {
+  const r = term.commencementTimeRule;
+  if (r === "AT_EVENT" || r === "MORNING_NOR_1400") return r;
+  throw new CalculationRefused(
+    "COMMENCEMENT_TIME_RULE_UNRECOGNISED",
+    `Cannot calculate: the commencement time rule "${r}" is not recognised.`
+  );
+}
+
 /** Splits loaded events into the engine's commencement/window and weather channels. */
 function partitionEvents(events: LoadedEvent[]): {
   engineEvents: EngineEvent[];
@@ -152,7 +165,9 @@ export function computePortCall(data: PortCallCalcData): PortCallComputation {
     engineEvents,
     data.term.commencementRule,
     turnTimeHours,
-    data.term.turnTimeTrigger
+    data.term.turnTimeTrigger,
+    data.timeZone,
+    commencementTimeRuleOf(data.term)
   );
 
   const stoppages: StoppageSpan[] = data.stoppages.map((s) => ({
@@ -293,7 +308,8 @@ export function computeProvisionalStatus(
     engineEvents,
     data.term.commencementRule,
     turnTime,
-    data.timeZone
+    data.timeZone,
+    commencementTimeRuleOf(data.term)
   );
 
   // Counting has not begun as of this instant: nothing used yet.

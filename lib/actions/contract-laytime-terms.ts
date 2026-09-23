@@ -14,6 +14,13 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { authorized, recordAudit } from "@/lib/auth/authorized";
 import { ForbiddenError } from "@/lib/auth/session";
 import { type ActionResult, ok, fail, withDatabaseErrors } from "./result";
+import {
+  COMMENCEMENT_EVENTS,
+  COMMENCEMENT_TIME_RULES,
+  ALLOWANCE_UNITS,
+  DESPATCH_BASES,
+  isOneOf,
+} from "@/lib/laytime/term-vocabulary";
 
 /**
  * CONTRACT LAYTIME TERM — the commercial values of a fixture.
@@ -53,6 +60,7 @@ export type ContractLaytimeTermRow = {
   turnTimeHours: string | null;
   turnTimeTrigger: string | null;
   commencementRule: string;
+  commencementTimeRule: string;
   onceOnDemurrage: boolean;
   ruleSetVersionId: string;
   poolId: string | null;
@@ -92,6 +100,8 @@ export type ContractLaytimeTermInput = {
   turnTimeHours?: string | null;
   turnTimeTrigger?: string | null;
   commencementRule: string;
+  /** "AT_EVENT" (default) or "MORNING_NOR_1400". */
+  commencementTimeRule?: string | null;
   /** "Once on demurrage, always on demurrage" clause (default false). */
   onceOnDemurrage?: boolean | null;
   ruleSetVersionId: string;
@@ -112,6 +122,7 @@ type ValidatedTerm = {
   turnTimeHours: string | null;
   turnTimeTrigger: string | null;
   commencementRule: string;
+  commencementTimeRule: string;
   onceOnDemurrage: boolean;
   ruleSetVersionId: string;
   poolId: string | null;
@@ -152,8 +163,8 @@ function validateTermInput(
       return fail("VALIDATION_ERROR", "Allowance must be a number.");
     }
     allowanceUnit = (input.allowanceUnit ?? "").trim();
-    if (allowanceUnit === "") {
-      return fail("VALIDATION_ERROR", "Allowance unit is required.");
+    if (!isOneOf(ALLOWANCE_UNITS, allowanceUnit)) {
+      return fail("VALIDATION_ERROR", "Allowance unit must be days or hours.");
     }
     allowanceRate = null;
   }
@@ -172,9 +183,37 @@ function validateTermInput(
     return fail("VALIDATION_ERROR", "Turn time hours must be a number.");
   }
 
+  // Turn time: a duration needs a recognised trigger event; no duration means
+  // no trigger is stored.
+  let turnTimeTrigger: string | null = null;
+  if (turnTimeHours !== null) {
+    turnTimeTrigger = trimOrNull(input.turnTimeTrigger);
+    if (!isOneOf(COMMENCEMENT_EVENTS, turnTimeTrigger)) {
+      return fail("VALIDATION_ERROR", "Choose the event turn time starts from.");
+    }
+  }
+
   const commencementRule = (input.commencementRule ?? "").trim();
-  if (commencementRule === "") {
-    return fail("VALIDATION_ERROR", "Commencement rule is required.");
+  if (!isOneOf(COMMENCEMENT_EVENTS, commencementRule)) {
+    return fail("VALIDATION_ERROR", "Choose the event laytime commences from.");
+  }
+
+  const commencementTimeRule = trimOrNull(input.commencementTimeRule) ?? "AT_EVENT";
+  if (!isOneOf(COMMENCEMENT_TIME_RULES, commencementTimeRule)) {
+    return fail("VALIDATION_ERROR", "An invalid commencement time rule was provided.");
+  }
+  // The 14:00 rule is itself the grace period; combining it with turn time
+  // would stack two grace mechanisms the engine does not define together.
+  if (commencementTimeRule !== "AT_EVENT" && turnTimeHours !== null) {
+    return fail(
+      "VALIDATION_ERROR",
+      "Use either turn time or the 12:00/14:00 commencement rule, not both."
+    );
+  }
+
+  const despatchBasis = trimOrNull(input.despatchBasis);
+  if (despatchBasis !== null && !isOneOf(DESPATCH_BASES, despatchBasis)) {
+    return fail("VALIDATION_ERROR", "An invalid despatch basis was provided.");
   }
 
   const ruleSetVersionId = (input.ruleSetVersionId ?? "").trim();
@@ -192,10 +231,11 @@ function validateTermInput(
     allowanceRate,
     demurrageRate,
     despatchRate,
-    despatchBasis: trimOrNull(input.despatchBasis),
+    despatchBasis,
     turnTimeHours,
-    turnTimeTrigger: trimOrNull(input.turnTimeTrigger),
+    turnTimeTrigger,
     commencementRule,
+    commencementTimeRule,
     onceOnDemurrage: input.onceOnDemurrage === true,
     ruleSetVersionId,
     poolId: trimOrNull(input.poolId),
@@ -354,6 +394,7 @@ export async function createContractLaytimeTerm(
           turnTimeHours: v.turnTimeHours,
           turnTimeTrigger: v.turnTimeTrigger,
           commencementRule: v.commencementRule,
+          commencementTimeRule: v.commencementTimeRule,
           onceOnDemurrage: v.onceOnDemurrage,
           ruleSetVersionId: v.ruleSetVersionId,
           poolId: v.poolId,
@@ -447,6 +488,7 @@ export async function updateContractLaytimeTerm(
         turnTimeHours: v.turnTimeHours,
         turnTimeTrigger: v.turnTimeTrigger,
         commencementRule: v.commencementRule,
+        commencementTimeRule: v.commencementTimeRule,
         onceOnDemurrage: v.onceOnDemurrage,
         ruleSetVersionId: v.ruleSetVersionId,
         poolId: v.poolId,

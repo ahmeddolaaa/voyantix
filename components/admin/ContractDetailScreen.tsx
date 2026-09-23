@@ -17,6 +17,13 @@ import {
 } from "@/lib/actions/contract-laytime-terms";
 import { DataTable, type Column, type SortState } from "@/components/DataTable";
 import { TermStoppageRules } from "@/components/admin/TermStoppageRules";
+import {
+  COMMENCEMENT_EVENTS,
+  COMMENCEMENT_TIME_RULES,
+  ALLOWANCE_UNITS,
+  DESPATCH_BASES,
+  isOneOf,
+} from "@/lib/laytime/term-vocabulary";
 import { Field, TextInput, FormError, SubmitButton } from "@/components/forms";
 import {
   Card,
@@ -65,6 +72,7 @@ type TermFormState = {
   turnTimeHours: string;
   turnTimeTrigger: string;
   commencementRule: string;
+  commencementTimeRule: string;
   /** "YES" | "NO" — once on demurrage, always on demurrage. */
   onceOnDemurrage: string;
   poolId: string;
@@ -76,14 +84,15 @@ const emptyTermForm: TermFormState = {
   ruleSetVersionId: "",
   allowanceBasis: "FIXED",
   allowance: "",
-  allowanceUnit: "",
+  allowanceUnit: "days",
   allowanceRate: "",
   demurrageRate: "",
   despatchRate: "",
   despatchBasis: "",
   turnTimeHours: "",
   turnTimeTrigger: "",
-  commencementRule: "",
+  commencementRule: "NOR_TENDERED",
+  commencementTimeRule: "AT_EVENT",
   onceOnDemurrage: "NO",
   poolId: "",
 };
@@ -268,6 +277,7 @@ export function ContractDetailScreen({
       turnTimeHours: t.turnTimeHours ?? "",
       turnTimeTrigger: t.turnTimeTrigger ?? "",
       commencementRule: t.commencementRule,
+      commencementTimeRule: t.commencementTimeRule ?? "AT_EVENT",
       onceOnDemurrage: t.onceOnDemurrage ? "YES" : "NO",
       poolId: t.poolId ?? "",
     });
@@ -298,6 +308,7 @@ export function ContractDetailScreen({
       turnTimeHours: termForm.turnTimeHours || null,
       turnTimeTrigger: termForm.turnTimeTrigger || null,
       commencementRule: termForm.commencementRule,
+      commencementTimeRule: termForm.commencementTimeRule,
       onceOnDemurrage: termForm.onceOnDemurrage === "YES",
       poolId: termForm.poolId || null,
     };
@@ -324,8 +335,9 @@ export function ContractDetailScreen({
         despatchRate: termForm.despatchRate.trim() || null,
         despatchBasis: termForm.despatchBasis.trim() || null,
         turnTimeHours: termForm.turnTimeHours.trim() || null,
-        turnTimeTrigger: termForm.turnTimeTrigger.trim() || null,
-        commencementRule: termForm.commencementRule.trim(),
+        turnTimeTrigger: termForm.turnTimeHours.trim() ? termForm.turnTimeTrigger || null : null,
+        commencementRule: termForm.commencementRule,
+        commencementTimeRule: termForm.commencementTimeRule,
         onceOnDemurrage: termForm.onceOnDemurrage === "YES",
         ruleSetVersionId: termForm.ruleSetVersionId,
         poolId: termForm.poolId || null,
@@ -381,7 +393,9 @@ export function ContractDetailScreen({
       header: "Allowance",
       render: (t) => (
         <span className="font-mono text-[12.5px]">
-          {t.allowance} {t.allowanceUnit}
+          {t.allowanceBasis === "RATE"
+            ? `${t.allowanceRate} MT/day`
+            : `${t.allowance} ${t.allowanceUnit}`}
         </span>
       ),
     },
@@ -668,8 +682,20 @@ export function ContractDetailScreen({
                     onChange={(e) => updateTermField("allowance", e.target.value)} placeholder="e.g. 5" />)}
                 </Field>
                 <Field label="Allowance unit" required>
-                  {(a) => (<TextInput {...a} value={termForm.allowanceUnit} disabled={pending}
-                    onChange={(e) => updateTermField("allowanceUnit", e.target.value)} placeholder="days or hours" />)}
+                  {(a) => (
+                    <select {...a} value={termForm.allowanceUnit} disabled={pending}
+                      onChange={(e) => updateTermField("allowanceUnit", e.target.value)}
+                      className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                      {!isOneOf(ALLOWANCE_UNITS, termForm.allowanceUnit) && (
+                        <option value={termForm.allowanceUnit}>
+                          {termForm.allowanceUnit || "Select…"} (not recognised — choose one)
+                        </option>
+                      )}
+                      {ALLOWANCE_UNITS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  )}
                 </Field>
               </>
             )}
@@ -699,27 +725,102 @@ export function ContractDetailScreen({
               {(a) => (<TextInput {...a} value={termForm.despatchRate} disabled={pending}
                 onChange={(e) => updateTermField("despatchRate", e.target.value)} placeholder="optional" />)}
             </Field>
-            <Field label="Despatch basis">
-              {(a) => (<TextInput {...a} value={termForm.despatchBasis} disabled={pending}
-                onChange={(e) => updateTermField("despatchBasis", e.target.value)} placeholder="optional" />)}
+            <Field
+              label="Despatch basis"
+              description="Despatch settlement is not calculated yet — a call with time saved and a despatch rate is refused."
+            >
+              {(a) => (
+                <select {...a} value={termForm.despatchBasis} disabled={pending}
+                  onChange={(e) => updateTermField("despatchBasis", e.target.value)}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                  <option value="">None</option>
+                  {termForm.despatchBasis !== "" && !isOneOf(DESPATCH_BASES, termForm.despatchBasis) && (
+                    <option value={termForm.despatchBasis}>
+                      {termForm.despatchBasis} (not recognised — choose one)
+                    </option>
+                  )}
+                  {DESPATCH_BASES.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
             </Field>
           </div>
 
-          <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>TURN TIME &amp; COMMENCEMENT</p>
+          <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>COMMENCEMENT</p>
           <div className="grid md:grid-cols-3 gap-x-6">
-            <Field label="Turn time hours">
-              {(a) => (<TextInput {...a} value={termForm.turnTimeHours} disabled={pending}
-                onChange={(e) => updateTermField("turnTimeHours", e.target.value)} placeholder="optional" />)}
+            <Field label="Laytime commences from" required>
+              {(a) => (
+                <select {...a} value={termForm.commencementRule} disabled={pending}
+                  onChange={(e) => updateTermField("commencementRule", e.target.value)}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                  {!isOneOf(COMMENCEMENT_EVENTS, termForm.commencementRule) && (
+                    <option value={termForm.commencementRule}>
+                      {termForm.commencementRule || "Select…"} (not recognised — choose one)
+                    </option>
+                  )}
+                  {COMMENCEMENT_EVENTS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
             </Field>
-            <Field label="Turn time trigger">
-              {(a) => (<TextInput {...a} value={termForm.turnTimeTrigger} disabled={pending}
-                onChange={(e) => updateTermField("turnTimeTrigger", e.target.value)} placeholder="optional" />)}
-            </Field>
-            <Field label="Commencement rule" required>
-              {(a) => (<TextInput {...a} value={termForm.commencementRule} disabled={pending}
-                onChange={(e) => updateTermField("commencementRule", e.target.value)} placeholder="how laytime commences" />)}
+            <Field
+              label="Commencement time"
+              required
+              description={
+                termForm.commencementTimeRule === "MORNING_NOR_1400"
+                  ? "An event after 12:00 is not defined by this rule — such a call is refused, not guessed."
+                  : undefined
+              }
+            >
+              {(a) => (
+                <select {...a} value={termForm.commencementTimeRule} disabled={pending}
+                  onChange={(e) => {
+                    updateTermField("commencementTimeRule", e.target.value);
+                    if (e.target.value !== "AT_EVENT") {
+                      updateTermField("turnTimeHours", "");
+                      updateTermField("turnTimeTrigger", "");
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                  {COMMENCEMENT_TIME_RULES.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
             </Field>
           </div>
+
+          {termForm.commencementTimeRule === "AT_EVENT" && (
+            <>
+              <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>TURN TIME</p>
+              <div className="grid md:grid-cols-3 gap-x-6">
+                <Field label="Turn time hours" description="Free time before laytime counts. Leave empty if none.">
+                  {(a) => (<TextInput {...a} value={termForm.turnTimeHours} disabled={pending}
+                    onChange={(e) => updateTermField("turnTimeHours", e.target.value)} placeholder="e.g. 6" />)}
+                </Field>
+                <Field label="Turn time starts from" required={termForm.turnTimeHours.trim() !== ""}>
+                  {(a) => (
+                    <select {...a} value={termForm.turnTimeTrigger}
+                      disabled={pending || termForm.turnTimeHours.trim() === ""}
+                      onChange={(e) => updateTermField("turnTimeTrigger", e.target.value)}
+                      className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                      <option value="">{termForm.turnTimeHours.trim() === "" ? "—" : "Select an event…"}</option>
+                      {termForm.turnTimeTrigger !== "" && !isOneOf(COMMENCEMENT_EVENTS, termForm.turnTimeTrigger) && (
+                        <option value={termForm.turnTimeTrigger}>
+                          {termForm.turnTimeTrigger} (not recognised — choose one)
+                        </option>
+                      )}
+                      {COMMENCEMENT_EVENTS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+              </div>
+            </>
+          )}
 
           <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>POOL</p>
           <div className="grid md:grid-cols-2 gap-x-6">

@@ -276,6 +276,10 @@ export const contractLaytimeTerms = pgTable(
     turnTimeHours: numeric("turn_time_hours"),
     turnTimeTrigger: text("turn_time_trigger"),
     commencementRule: text("commencement_rule").notNull(),
+    // How the commencement event maps to when counting starts:
+    //   AT_EVENT          — at the event instant (or after turn time, if set)
+    //   MORNING_NOR_1400  — event before 12:00 local → 14:00 local same day
+    commencementTimeRule: text("commencement_time_rule").notNull().default("AT_EVENT"),
     // "Once on demurrage, always on demurrage": after laytime expires, the
     // laytime exceptions (excluded days, holidays, stoppages) stop applying and
     // all subsequent time counts. Default off = prior behaviour.

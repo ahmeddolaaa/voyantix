@@ -21,6 +21,7 @@ const base = (over: Partial<PortCallCalcData> = {}): PortCallCalcData => ({
     allowanceUnit: "days",
     allowanceRate: null,
     commencementRule: "NOR_ACCEPTED",
+    commencementTimeRule: "AT_EVENT",
     turnTimeHours: "24",
     turnTimeTrigger: "NOR_ACCEPTED",
     onceOnDemurrage: false,
@@ -152,6 +153,7 @@ describe("computePortCall — rate-based allowance", () => {
     allowanceUnit: "days",
     allowanceRate: "3000",
     commencementRule: "NOR_ACCEPTED",
+    commencementTimeRule: "AT_EVENT",
     turnTimeHours: null,
     turnTimeTrigger: null,
     onceOnDemurrage: false,
@@ -179,6 +181,7 @@ describe("computeProvisionalStatus — running reference", () => {
     allowanceUnit: "days",
     allowanceRate: "3000",
     commencementRule: "NOR_ACCEPTED",
+    commencementTimeRule: "AT_EVENT",
     turnTimeHours: null,
     turnTimeTrigger: null,
     onceOnDemurrage: false,
@@ -217,5 +220,36 @@ describe("computeProvisionalStatus — running reference", () => {
     expect(s.quantityIsActual).toBe(true);
     expect(s.allowedSeconds).toBe(43200); // 1500/3000 * 86400 = 0.5 day
     expect(s.onDemurrage).toBe(true); // 24h used > 12h allowed
+  });
+});
+
+describe("computePortCall — commencement time rule from the term", () => {
+  // MV YUFIX: NOR tendered Mon 06/07/26 08:00 → laytime starts 14:00 same day.
+  const events = [
+    { semantic: "NOR_TENDERED", occurredAt: D("2026-07-06T05:00:00Z") }, // 08:00 Cairo
+    { semantic: "OPS_COMPLETED", occurredAt: D("2026-07-07T21:00:00Z") },
+  ];
+  const term = (commencementTimeRule: string) => ({
+    ...base().term,
+    commencementRule: "NOR_TENDERED",
+    commencementTimeRule,
+    turnTimeHours: null,
+    turnTimeTrigger: null,
+  });
+
+  it("MORNING_NOR_1400 starts counting at 14:00 local", () => {
+    const r = computePortCall(base({ term: term("MORNING_NOR_1400"), events }));
+    expect(r.window.start.toISOString()).toBe("2026-07-06T11:00:00.000Z"); // 14:00 Cairo
+  });
+
+  it("AT_EVENT starts at the NOR itself", () => {
+    const r = computePortCall(base({ term: term("AT_EVENT"), events }));
+    expect(r.window.start.toISOString()).toBe("2026-07-06T05:00:00.000Z");
+  });
+
+  it("refuses an unrecognised rule rather than guessing", () => {
+    expect(() => computePortCall(base({ term: term("SOMETIMES"), events }))).toThrow(
+      CalculationRefused
+    );
   });
 });
