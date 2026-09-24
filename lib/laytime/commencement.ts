@@ -86,6 +86,24 @@ export function isEngineEventSemantic(
  * more than one does (choosing one would invent a fact — consistent with the
  * resolver's no-silent-tie-break rule, F15).
  */
+/** Readable names for refusal messages (the UI shows these to the user). */
+const SEMANTIC_LABEL: Record<EngineEventSemantic, string> = {
+  NOR_TENDERED: "NOR tendered",
+  NOR_ACCEPTED: "NOR accepted",
+  BERTHED: "Berthed",
+  OPS_COMMENCED: "Operations commenced",
+  OPS_COMPLETED: "Operations completed",
+  LASHING_COMPLETED: "Lashing completed",
+  DOCUMENTS_ON_BOARD: "Documents on board",
+  DEPARTED: "Departed",
+  WEATHER_START: "Weather stoppage started",
+  WEATHER_END: "Weather stoppage ended",
+};
+
+export function semanticLabel(semantic: EngineEventSemantic): string {
+  return SEMANTIC_LABEL[semantic];
+}
+
 export function resolveRequiredEvent(
   events: EngineEvent[],
   semantic: EngineEventSemantic,
@@ -96,13 +114,13 @@ export function resolveRequiredEvent(
   if (matches.length === 0) {
     throw new CalculationRefused(
       `${contextCode}_EVENT_MISSING`,
-      `Cannot calculate: the required ${semantic} event has not been recorded for this port call.`
+      `Cannot calculate: the "${SEMANTIC_LABEL[semantic]}" event has not been recorded for this port call. Record it, or choose another laytime end.`
     );
   }
   if (matches.length > 1) {
     throw new CalculationRefused(
       `${contextCode}_EVENT_AMBIGUOUS`,
-      `Cannot calculate: more than one live ${semantic} event exists, and choosing one would be a guess.`
+      `Cannot calculate: more than one "${SEMANTIC_LABEL[semantic]}" event is recorded, and choosing one would be a guess.`
     );
   }
   return matches[0].occurredAt;

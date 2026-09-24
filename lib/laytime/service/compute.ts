@@ -46,6 +46,7 @@ import {
   type CommencementCalendar,
   type LaytimeEndEvent,
   isLaytimeEndEvent,
+  semanticLabel,
 } from "../commencement";
 import { getLocalParts } from "../timezone";
 import { toLocalDateKey } from "../calendar-classification";
@@ -354,6 +355,21 @@ export function computeProvisionalStatus(
   const endEvent = laytimeEndEventOf(data);
   const completions = engineEvents.filter((e) => e.semantic === endEvent);
   const operationsCompletedAt = completions.length === 1 ? completions[0].occurredAt : null;
+  // The configured end is not recorded, but operations already completed: the
+  // operation is over, so counting to "now" would show a false figure. Say
+  // what is missing instead (e.g. documents on board not recorded yet).
+  if (
+    operationsCompletedAt === null &&
+    endEvent !== "OPS_COMPLETED" &&
+    completions.length === 0 &&
+    engineEvents.some((e) => e.semantic === "OPS_COMPLETED")
+  ) {
+    throw new CalculationRefused(
+      "LAYTIME_END_EVENT_NOT_RECORDED",
+      `Operations are completed, but laytime ends at "${semanticLabel(endEvent)}", which is not recorded yet. Record it to see the final status.`
+    );
+  }
+
   const countUntil =
     operationsCompletedAt !== null && operationsCompletedAt.getTime() < asOf.getTime()
       ? operationsCompletedAt

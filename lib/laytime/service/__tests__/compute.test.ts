@@ -364,6 +364,24 @@ describe("computePortCall — laytime end event (term default + port-call overri
     expect(() => computePortCall(base({ events, laytimeEndOverride: "SAILED" }))).toThrow(CalculationRefused);
   });
 
+  it("provisional status refuses (not 91 days) when ops completed but the chosen end is not recorded", () => {
+    const noDocs = events.filter((e) => e.semantic !== "DOCUMENTS_ON_BOARD");
+    try {
+      computeProvisionalStatus(base({ events: noDocs, laytimeEndOverride: "DOCUMENTS_ON_BOARD" }), D("2026-09-24T05:00:00Z"));
+      throw new Error("should have refused");
+    } catch (e) {
+      expect(e).toBeInstanceOf(CalculationRefused);
+      expect((e as CalculationRefused).code).toBe("LAYTIME_END_EVENT_NOT_RECORDED");
+      expect((e as Error).message).toContain("Documents on board");
+    }
+  });
+
+  it("provisional status still runs to now while operations are in progress", () => {
+    const running = events.filter((e) => e.semantic === "NOR_ACCEPTED");
+    const s = computeProvisionalStatus(base({ events: running, laytimeEndOverride: "DOCUMENTS_ON_BOARD" }), D("2026-06-14T05:00:00Z"));
+    expect(s.window.end.toISOString()).toBe("2026-06-14T05:00:00.000Z");
+  });
+
   it("provisional status stops at the configured end event", () => {
     const s = computeProvisionalStatus(
       base({ events, laytimeEndOverride: "DOCUMENTS_ON_BOARD" }),
