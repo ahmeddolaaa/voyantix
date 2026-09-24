@@ -68,6 +68,16 @@ type TermOption = {
   laytimeEndEvent: string;
 };
 
+type PortCallTab = "laytime" | "cargo" | "events" | "stoppages" | "terms";
+
+const PORT_CALL_TABS: { id: PortCallTab; label: string }[] = [
+  { id: "laytime", label: "Laytime" },
+  { id: "cargo", label: "Cargo & loading" },
+  { id: "events", label: "Events & SOF" },
+  { id: "stoppages", label: "Stoppages" },
+  { id: "terms", label: "Terms" },
+];
+
 const STATUS_LABEL: Record<PortCallStatus, string> = {
   ACTIVE: "Active",
   COMPLETED: "Completed",
@@ -139,6 +149,9 @@ export function VoyageDetailScreen({
 }) {
   const [calls, setCalls] = useState(initialPortCalls);
   const [calcVersion, setCalcVersion] = useState(0);
+  // Which section each port call shows. All sections stay mounted (hidden,
+  // not unmounted) so a half-filled form survives switching tabs.
+  const [tabByCall, setTabByCall] = useState<Record<string, PortCallTab>>({});
   const [plans, setPlans] = useState(initialPlansByPortCall);
   const [pending, startTransition] = useTransition();
 
@@ -402,41 +415,46 @@ export function VoyageDetailScreen({
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-8 py-8">
-      <div className="mb-6">
+    <div className="max-w-[1320px] mx-auto px-6 lg:px-9 py-8">
+      <div className="mb-7 flex flex-col gap-3">
         <Link
           href="/admin/voyages"
-          className="text-[12.5px] hover:underline"
-          style={{ color: "var(--brass)" }}
+          className="text-[12.5px] font-medium no-underline hover:underline self-start"
+          style={{ color: "var(--teal)" }}
         >
           ← All voyages
         </Link>
-        <div className="flex items-start justify-between mt-2">
-          <div>
-            <PageTitle>{voyageReference}</PageTitle>
-            <p className="text-[13px] mt-1" style={{ color: "var(--steel)" }}>
-              {vesselName}
-              {contractId ? "" : " · no contract attached"}
-            </p>
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div className="flex flex-col gap-1.5">
+            <span
+              className="num text-[11.5px] font-semibold uppercase tracking-[.12em]"
+              style={{ color: "var(--steel)" }}
+            >
+              {voyageReference}
+              {sortedCalls.length > 0 &&
+                ` · ${sortedCalls.map((c) => portName(c.portId)).join(" → ")}`}
+            </span>
+            <div className="flex items-center gap-3 flex-wrap">
+              <PageTitle>{vesselName}</PageTitle>
+              <StatusBadge tone={status === "ACTIVE" ? "teal" : "neutral"}>
+                {status === "ACTIVE"
+                  ? "Active"
+                  : status === "COMPLETED"
+                    ? "Completed"
+                    : "Cancelled"}
+              </StatusBadge>
+              {!contractId && <StatusBadge tone="rust">No contract attached</StatusBadge>}
+            </div>
           </div>
-          <StatusBadge tone={status === "ACTIVE" ? "teal" : "neutral"}>
-            {status === "ACTIVE"
-              ? "Active"
-              : status === "COMPLETED"
-                ? "Completed"
-                : "Cancelled"}
-          </StatusBadge>
+          <a
+            href="#statement"
+            className="text-[13px] font-medium no-underline hover:underline"
+            style={{ color: "var(--teal)" }}
+          >
+            Statement ↓
+          </a>
         </div>
       </div>
-
-      <VoyageStatement
-        refreshKey={calcVersion}
-        voyageId={voyageId}
-        timeZone={calls[0]?.effectiveTimezone ?? "UTC"}
-        portCallLabels={Object.fromEntries(
-          calls.map((c) => [c.id, `${c.sequence} · ${portName(c.portId)}`])
-        )}
-      />
 
       <div className="flex items-center justify-between mb-3">
         <SectionHeading>Port calls</SectionHeading>
@@ -660,13 +678,86 @@ export function VoyageDetailScreen({
                 </div>
               </div>
 
-              <div className="lg:flex lg:gap-7">
-                {/* Main operational column: cargo, commercial term, and the
-                    operational log (events, stoppages, statement of facts). */}
-                <div className="lg:flex-[1.7] min-w-0">
+              {(() => {
+                const active = tabByCall[c.id] ?? "laytime";
+                const tabId = (t: PortCallTab) => `pc-${c.id}-tab-${t}`;
+                const panelId = (t: PortCallTab) => `pc-${c.id}-panel-${t}`;
+                return (
+                  <>
+                    <div
+                      role="tablist"
+                      aria-label={`Sections for port call ${c.sequence}`}
+                      className="flex gap-1 mt-4 -mx-5 px-5 overflow-x-auto"
+                      style={{ borderBottom: "1px solid var(--line)" }}
+                    >
+                      {PORT_CALL_TABS.map((t) => {
+                        const on = active === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            id={tabId(t.id)}
+                            role="tab"
+                            type="button"
+                            aria-selected={on}
+                            aria-controls={panelId(t.id)}
+                            onClick={() => setTabByCall((m) => ({ ...m, [c.id]: t.id }))}
+                            className="h-11 px-3.5 text-[13.5px] whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brass)]"
+                            style={{
+                              color: on ? "var(--navy)" : "var(--ink-soft)",
+                              fontWeight: on ? 600 : 500,
+                              boxShadow: on ? "inset 0 -2px 0 var(--brass)" : "none",
+                            }}
+                          >
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div
+                      role="tabpanel"
+                      id={panelId("laytime")}
+                      aria-labelledby={tabId("laytime")}
+                      hidden={active !== "laytime"}
+                      className="pt-4 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-6 items-start"
+                    >
+                      <div className="min-w-0 [&>*:first-child]:!mt-0 [&>*:first-child]:!pt-0 [&>*:first-child]:!border-t-0">
+              {c.status === "ACTIVE" && (
+                <PortCallProvisionalStatus
+                  portCallId={c.id}
+                  timeZone={c.effectiveTimezone}
+                  refreshKey={c.laytimeEndOverride}
+                />
+              )}
+                      </div>
+                      <div className="min-w-0 [&>*:first-child]:!mt-0 [&>*:first-child]:!pt-0 [&>*:first-child]:!border-t-0">
+              <PortCallCalculation
+                portCallId={c.id}
+                timeZone={c.effectiveTimezone}
+                termLaytimeEnd={
+                  c.contractLaytimeTermId
+                    ? termOptions.find((t) => t.id === c.contractLaytimeTermId)?.laytimeEndEvent ?? null
+                    : null
+                }
+                laytimeEndOverride={c.laytimeEndOverride}
+                onLaytimeEndChanged={(v) =>
+                  setCalls((prev) => prev.map((p) => (p.id === c.id ? { ...p, laytimeEndOverride: v } : p)))
+                }
+                onRecalculated={() => setCalcVersion((n) => n + 1)}
+              />
+                      </div>
+                    </div>
+
+                    <div
+                      role="tabpanel"
+                      id={panelId("cargo")}
+                      aria-labelledby={tabId("cargo")}
+                      hidden={active !== "cargo"}
+                      className="pt-4 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-6 items-start"
+                    >
+                      <div className="min-w-0 [&>*:first-child]:!mt-0 [&>*:first-child]:!pt-0 [&>*:first-child]:!border-t-0">
               <div
-                className="mt-4 pt-4"
-                style={{ borderTop: "1px solid var(--line)" }}
+                className="pt-1"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span
@@ -815,10 +906,68 @@ export function VoyageDetailScreen({
                   </div>
                 )}
               </div>
+                      </div>
+                      <div className="min-w-0 [&>*:first-child]:!mt-0 [&>*:first-child]:!pt-0 [&>*:first-child]:!border-t-0">
+              <PortCallShifts
+                portCallId={c.id}
+                portCallFunction={c.function}
+                initialShifts={initialShiftsByPortCall[c.id] ?? []}
+                cargoes={callPlans.map((p) => ({
+                  id: p.cargoId,
+                  name: cargoName(p.cargoId),
+                  status: "active" as const,
+                }))}
+                facilities={facilitiesForPort(c.portId)}
+              />
+                      </div>
+                    </div>
 
+                    <div
+                      role="tabpanel"
+                      id={panelId("events")}
+                      aria-labelledby={tabId("events")}
+                      hidden={active !== "events"}
+                      className="pt-4 [&>*:first-child]:!mt-0 [&>*:first-child]:!pt-0 [&>*:first-child]:!border-t-0"
+                    >
+              <PortCallEvents
+                portCallId={c.id}
+                initialEvents={initialEventsByPortCall[c.id] ?? []}
+                eventTypes={eventTypes}
+                timeZone={c.effectiveTimezone}
+              />
+              <PortCallTimeline
+                events={initialEventsByPortCall[c.id] ?? []}
+                stoppages={initialStoppagesByPortCall[c.id] ?? []}
+                eventTypes={eventTypes}
+                reasons={stoppageReasons}
+                timeZone={c.effectiveTimezone}
+              />
+                    </div>
+
+                    <div
+                      role="tabpanel"
+                      id={panelId("stoppages")}
+                      aria-labelledby={tabId("stoppages")}
+                      hidden={active !== "stoppages"}
+                      className="pt-4 [&>*:first-child]:!mt-0 [&>*:first-child]:!pt-0 [&>*:first-child]:!border-t-0"
+                    >
+              <PortCallStoppages
+                portCallId={c.id}
+                initialStoppages={initialStoppagesByPortCall[c.id] ?? []}
+                reasons={stoppageReasons}
+                timeZone={c.effectiveTimezone}
+              />
+                    </div>
+
+                    <div
+                      role="tabpanel"
+                      id={panelId("terms")}
+                      aria-labelledby={tabId("terms")}
+                      hidden={active !== "terms"}
+                      className="pt-4 max-w-[640px]"
+                    >
               <div
-                className="mt-4 pt-4"
-                style={{ borderTop: "1px solid var(--line)" }}
+                className="pt-1"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span
@@ -900,73 +1049,25 @@ export function VoyageDetailScreen({
                   </p>
                 )}
               </div>
-
-              <PortCallEvents
-                portCallId={c.id}
-                initialEvents={initialEventsByPortCall[c.id] ?? []}
-                eventTypes={eventTypes}
-                timeZone={c.effectiveTimezone}
-              />
-
-              <PortCallStoppages
-                portCallId={c.id}
-                initialStoppages={initialStoppagesByPortCall[c.id] ?? []}
-                reasons={stoppageReasons}
-                timeZone={c.effectiveTimezone}
-              />
-
-              <PortCallTimeline
-                events={initialEventsByPortCall[c.id] ?? []}
-                stoppages={initialStoppagesByPortCall[c.id] ?? []}
-                eventTypes={eventTypes}
-                reasons={stoppageReasons}
-                timeZone={c.effectiveTimezone}
-              />
-                </div>
-
-                {/* Right support rail: the computed laytime result and shift
-                    performance sit alongside the operational log they read. */}
-                <div className="lg:flex-1 lg:max-w-[440px] min-w-0">
-              {c.status === "ACTIVE" && (
-                <PortCallProvisionalStatus
-                  portCallId={c.id}
-                  timeZone={c.effectiveTimezone}
-                  refreshKey={c.laytimeEndOverride}
-                />
-              )}
-
-              <PortCallCalculation
-                portCallId={c.id}
-                timeZone={c.effectiveTimezone}
-                termLaytimeEnd={
-                  c.contractLaytimeTermId
-                    ? termOptions.find((t) => t.id === c.contractLaytimeTermId)?.laytimeEndEvent ?? null
-                    : null
-                }
-                laytimeEndOverride={c.laytimeEndOverride}
-                onLaytimeEndChanged={(v) =>
-                  setCalls((prev) => prev.map((p) => (p.id === c.id ? { ...p, laytimeEndOverride: v } : p)))
-                }
-                onRecalculated={() => setCalcVersion((n) => n + 1)}
-              />
-
-              <PortCallShifts
-                portCallId={c.id}
-                portCallFunction={c.function}
-                initialShifts={initialShiftsByPortCall[c.id] ?? []}
-                cargoes={callPlans.map((p) => ({
-                  id: p.cargoId,
-                  name: cargoName(p.cargoId),
-                  status: "active" as const,
-                }))}
-                facilities={facilitiesForPort(c.portId)}
-              />
-                </div>
-              </div>
+                    </div>
+                  </>
+                );
+              })()}
             </Card>
           );
         })}
       </div>
+
+      <section id="statement" className="mt-8 scroll-mt-6">
+        <VoyageStatement
+          refreshKey={calcVersion}
+          voyageId={voyageId}
+          timeZone={calls[0]?.effectiveTimezone ?? "UTC"}
+          portCallLabels={Object.fromEntries(
+            calls.map((c) => [c.id, `${c.sequence} · ${portName(c.portId)}`])
+          )}
+        />
+      </section>
     </div>
   );
 }
