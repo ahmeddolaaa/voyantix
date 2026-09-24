@@ -298,18 +298,17 @@ export function PortCallCalculation({
                   {calc.intervals.map((iv, i) => (
                     <div
                       key={iv.sequence}
-                      className="flex items-center justify-between px-3 py-1.5 text-[12px]"
+                      className="px-3 py-1.5 text-[12px]"
                       style={{
                         borderTop: i === 0 ? undefined : "1px solid var(--line)",
                         background: iv.treatment === "COUNTED" ? "var(--card)" : "var(--bg)",
                       }}
                     >
-                      <span className="num" style={muted}>
-                        {formatInstant(new Date(iv.start), timeZone)} →{" "}
-                        {formatInstant(new Date(iv.end), timeZone)}
-                      </span>
-                      <span className="inline-flex items-center gap-2">
-                        <span style={{ color: "var(--ink-soft)" }}>{reasonText(iv.reasons, iv.treatment)}</span>
+                      {/* Line 1: the period and its status; line 2: why (if anything special). */}
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="num whitespace-nowrap" style={muted}>
+                          {formatInstant(new Date(iv.start), timeZone)} → {formatInstant(new Date(iv.end), timeZone)}
+                        </span>
                         {iv.countedFraction >= 1 ? (
                           <StatusBadge tone="teal">Counted</StatusBadge>
                         ) : iv.countedFraction <= 0 ? (
@@ -319,7 +318,12 @@ export function PortCallCalculation({
                             Counted {Math.round(iv.countedFraction * 100)}%
                           </StatusBadge>
                         )}
-                      </span>
+                      </div>
+                      {iv.reasons.length > 0 && (
+                        <div className="mt-0.5 text-[11.5px]" style={{ color: "var(--ink-soft)" }}>
+                          {reasonText(iv.reasons, iv.treatment)}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
