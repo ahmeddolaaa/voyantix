@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { localToDisplay, displayToLocal } from "@/lib/ingestion/local-time-text";
+import { STOPPAGE_CATEGORY_LABEL } from "@/lib/ingestion/schema";
 import type {
   SofExtraction,
   ExtractedEvent,
@@ -74,19 +75,7 @@ const STOPPAGE_CATEGORIES: StoppageCategory[] = [
   "OTHER",
 ];
 
-const STOPPAGE_LABEL: Record<StoppageCategory, string> = {
-  LABOUR_BREAK: "Labour break",
-  MEAL_BREAK: "Meal break",
-  RELIGIOUS: "Religious",
-  WEATHER: "Weather",
-  PORT_CLOSURE: "Port closure",
-  AWAITING_BERTH: "Awaiting berth",
-  AWAITING_INSTRUCTIONS: "Awaiting instructions",
-  SHIFTING: "Shifting",
-  NO_GANG: "No gang",
-  BREAKDOWN: "Breakdown",
-  OTHER: "Other",
-};
+const STOPPAGE_LABEL: Record<StoppageCategory, string> = STOPPAGE_CATEGORY_LABEL;
 
 const selectStyle = {
   background: "var(--card)",
@@ -470,6 +459,21 @@ export function ExtractionReview({
                   {summary.committedStoppages} stoppage
                   {summary.committedStoppages === 1 ? "" : "s"}.
                 </div>
+                {summary.createdReasons.length > 0 && (
+                  <div className="text-[11.5px] mb-2" style={muted}>
+                    New stoppage reasons added: {summary.createdReasons.join(", ")}.
+                  </div>
+                )}
+                {summary.reasonsWithoutRule.length > 0 && (
+                  <div
+                    className="text-[12px] rounded p-2.5 mb-2"
+                    style={{ background: "var(--rust-soft)", border: "1px solid var(--rust)", color: "var(--ink)" }}
+                  >
+                    <strong>Next:</strong> the contract term has no rule yet for{" "}
+                    <strong>{summary.reasonsWithoutRule.join(", ")}</strong>. Open the contract →{" "}
+                    <em>Stoppage rules</em> and set whether each one counts; the calculation needs it.
+                  </div>
+                )}
                 {summary.skipped.length > 0 && (
                   <div className="mb-2">
                     <div className="text-[12px] font-medium mb-1" style={{ color: "var(--rust)" }}>

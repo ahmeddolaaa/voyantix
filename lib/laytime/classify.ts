@@ -95,7 +95,8 @@ export function classifyInterval(
     if (mode === undefined) {
       throw new CalculationRefused(
         "STOPPAGE_RULE_MISSING",
-        `Cannot calculate: the stoppage reason ${f.stoppageReasonId} has no contractual countability rule.`
+        `Cannot calculate: the stoppage reason ${f.stoppageReasonId} has no contractual countability rule.`,
+        f.stoppageReasonId
       );
     }
     if (mode === "AlwaysExcluded") {

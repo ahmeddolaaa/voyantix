@@ -19,7 +19,7 @@ vi.mock("@/lib/auth/session", async () => {
 import { db } from "@/db/client";
 import {
   organizations, users, memberships, ports, voyages, voyagePortCalls,
-  operationalEvents, operationalEventTypes,
+  operationalEvents, operationalEventTypes, stoppageReasons, stoppages,
 } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { hashPassword } from "@/lib/auth/password";
@@ -84,5 +84,32 @@ describe("commitExtraction — lashing / documents and repeat commits", () => {
     expect(await liveSemantics()).toEqual(
       ["DOCUMENTS_ON_BOARD", "LASHING_COMPLETED", "NOR_TENDERED", "OPS_COMPLETED"]
     );
+  });
+
+  it("creates a missing stoppage reason from the SOF category, once", async () => {
+    const payload = {
+      events: [],
+      stoppages: [
+        { reasonCategory: "PORT_CLOSURE" as const, reasonText: "Port closed by navy", startLocal: "2026-06-25T20:00", endLocal: "2026-06-26T01:00" },
+        { reasonCategory: "LABOUR_BREAK" as const, reasonText: "Loading suspended – labours break time", startLocal: "2026-06-26T03:00", endLocal: "2026-06-26T09:10" },
+        // inside the port closure → rejected by the no-overlap rule (PO13), reported
+        { reasonCategory: "LABOUR_BREAK" as const, reasonText: "Loading suspended – labours break time", startLocal: "2026-06-25T21:55", endLocal: "2026-06-25T23:20" },
+      ],
+    };
+    const r = await commitExtraction(portCallId, payload);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.committedStoppages).toBe(2);
+    expect(r.data.createdReasons.sort()).toEqual(["Labour break", "Port closure"]);
+    expect(r.data.skipped.length).toBe(1);
+
+    const again = await commitExtraction(portCallId, payload);
+    expect(again.ok && again.data.createdReasons).toEqual([]);
+    expect(again.ok && again.data.committedStoppages).toBe(0);
+
+    const names = await db.select({ n: stoppageReasons.name }).from(stoppageReasons).where(eq(stoppageReasons.organizationId, orgId));
+    expect(names.map((x) => x.n).sort()).toEqual(["Labour break", "Port closure"]);
+    const rows = await db.select().from(stoppages).where(eq(stoppages.portCallId, portCallId));
+    expect(rows).toHaveLength(2);
   });
 });

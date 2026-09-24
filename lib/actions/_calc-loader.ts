@@ -22,6 +22,7 @@ import {
   holidays,
   shiftPerformances,
   cargoPlans,
+  stoppageReasons,
 } from "@/db/schema";
 import { and, asc, eq, gt, isNull } from "drizzle-orm";
 import type { TenantContext } from "@/lib/auth/session";
@@ -144,8 +145,10 @@ export async function loadPortCallCalcData(
       start: stoppages.startTime,
       end: stoppages.endTime,
       reasonId: stoppages.reasonId,
+      reasonName: stoppageReasons.name,
     })
     .from(stoppages)
+    .innerJoin(stoppageReasons, eq(stoppageReasons.id, stoppages.reasonId))
     .where(
       and(
         eq(stoppages.portCallId, portCallId),
@@ -159,10 +162,11 @@ export async function loadPortCallCalcData(
     end: s.end,
     reasonId: s.reasonId,
   }));
-  const loadedStoppages: LoadedStoppage[] = rawStoppages.map((s) => ({
+  const loadedStoppages: LoadedStoppage[] = stoppageRows.map((s) => ({
     start: s.start,
     end: s.end,
     reasonId: s.reasonId,
+    reasonName: s.reasonName,
   }));
 
   const ruleRows = await db

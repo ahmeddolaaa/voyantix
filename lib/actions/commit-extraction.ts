@@ -8,6 +8,7 @@ import {
   operationalEvents,
   stoppageReasons,
   stoppages as stoppagesTable,
+  contractStoppageRules,
   voyagePortCalls,
 } from "@/db/schema";
 import { authorized } from "@/lib/auth/authorized";
@@ -15,9 +16,11 @@ import { ForbiddenError } from "@/lib/auth/session";
 import { instantFromLocal } from "@/lib/laytime/timezone";
 import {
   ENGINE_SEMANTIC,
+  STOPPAGE_CATEGORY_LABEL,
   type LaytimeEventType,
   type StoppageCategory,
 } from "@/lib/ingestion/schema";
+import { createStoppageReason } from "./stoppage-reasons";
 import { recordOperationalEvent } from "./operational-events";
 import { createStoppage } from "./stoppages";
 import { type ActionResult, ok, fail } from "./result";
@@ -57,6 +60,11 @@ export type CommitPayload = {
 export type CommitSummary = {
   committedEvents: number;
   committedStoppages: number;
+  /** Stoppage reasons that did not exist and were created from the SOF category. */
+  createdReasons: string[];
+  /** Reasons of committed stoppages that the port call's term has no rule for
+   *  yet — the calculation will ask for them (count or not). */
+  reasonsWithoutRule: string[];
   /** Human-readable lines for everything that could not be committed. */
   skipped: string[];
 };
@@ -73,12 +81,16 @@ function toIso(local: string, timeZone: string): string | null {
   ).toISOString();
 }
 
-/** Best-effort match of an extracted stoppage to one of the org's reasons. */
+/** Best-effort match of an extracted stoppage to one of the org's reasons:
+ *  the category's own name first, then words from the SOF text. */
 function matchReason(
   reasons: { id: string; name: string }[],
   category: StoppageCategory,
   text: string
 ): string | null {
+  const label = STOPPAGE_CATEGORY_LABEL[category].toLowerCase();
+  const exact = reasons.find((r) => r.name.trim().toLowerCase() === label);
+  if (exact) return exact.id;
   const hay = `${text} ${category}`.toLowerCase();
   const catWords = category.toLowerCase().split("_");
   for (const r of reasons) {
@@ -99,6 +111,7 @@ export async function commitExtraction(
         .select({
           tz: voyagePortCalls.effectiveTimezone,
           voyageId: voyagePortCalls.voyageId,
+          termId: voyagePortCalls.contractLaytimeTermId,
         })
         .from(voyagePortCalls)
         .where(
@@ -197,11 +210,22 @@ export async function commitExtraction(
         } else skipped.push(`Event "${e.type}": ${r.message}`);
       }
 
+      const createdReasons: string[] = [];
+      const usedReasonIds = new Set<string>();
       for (const s of payload.stoppages) {
-        const reasonId = matchReason(reasons, s.reasonCategory, s.reasonText);
+        let reasonId = matchReason(reasons, s.reasonCategory, s.reasonText);
         if (!reasonId) {
-          skipped.push(`No stoppage reason matches "${s.reasonText}".`);
-          continue;
+          // The analyst confirmed the category in review: create the reason
+          // under that neutral name. Whether it counts stays a CONTRACT rule.
+          const name = STOPPAGE_CATEGORY_LABEL[s.reasonCategory];
+          const created = await createStoppageReason({ name, isWeatherRelated: s.reasonCategory === "WEATHER" });
+          if (!created.ok) {
+            skipped.push(`Stoppage "${s.reasonText}": could not create the reason "${name}" — ${created.message}`);
+            continue;
+          }
+          reasonId = created.data.id;
+          reasons.push({ id: reasonId, name });
+          createdReasons.push(name);
         }
         const startTime = toIso(s.startLocal, tz);
         if (!startTime) {
@@ -217,8 +241,29 @@ export async function commitExtraction(
           endTime,
           notes: s.reasonText,
         });
-        if (r.ok) committedStoppages++;
-        else skipped.push(`Stoppage "${s.reasonText}": ${r.message}`);
+        if (r.ok) {
+          committedStoppages++;
+          usedReasonIds.add(reasonId);
+        } else skipped.push(`Stoppage "${s.reasonText}": ${r.message}`);
+      }
+      // Identical stoppages already on the port call also need a rule.
+      for (const x of liveStoppages) usedReasonIds.add(x.reasonId);
+
+      let reasonsWithoutRule: string[] = [];
+      if (pc.termId && usedReasonIds.size > 0) {
+        const ruled = await db
+          .select({ id: contractStoppageRules.stoppageReasonId })
+          .from(contractStoppageRules)
+          .where(
+            and(
+              eq(contractStoppageRules.termId, pc.termId),
+              eq(contractStoppageRules.organizationId, ctx.organizationId)
+            )
+          );
+        const ruledIds = new Set(ruled.map((r) => r.id));
+        reasonsWithoutRule = [...usedReasonIds]
+          .filter((id) => !ruledIds.has(id))
+          .map((id) => reasons.find((r) => r.id === id)?.name ?? id);
       }
 
       // The voyage page (also when reached with the browser's Back button)
@@ -232,6 +277,8 @@ export async function commitExtraction(
       return ok<CommitSummary>({
         committedEvents,
         committedStoppages,
+        createdReasons,
+        reasonsWithoutRule,
         skipped,
       });
     });

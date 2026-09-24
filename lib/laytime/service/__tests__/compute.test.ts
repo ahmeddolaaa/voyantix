@@ -430,3 +430,23 @@ describe("GOLDEN — MY FELLAS loading through the app path (documents on board)
     expect(s.amount).toBe(13537.82);
   });
 });
+
+describe("computePortCall — readable refusal for a stoppage reason without a rule", () => {
+  it("names the reason and says where to fix it", () => {
+    try {
+      computePortCall(
+        base({
+          stoppages: [
+            { start: D("2026-06-13T10:00:00Z"), end: D("2026-06-13T12:00:00Z"), reasonId: "r-1", reasonName: "Labour break" },
+          ],
+        })
+      );
+      throw new Error("should have refused");
+    } catch (e) {
+      expect(e).toBeInstanceOf(CalculationRefused);
+      expect((e as CalculationRefused).code).toBe("STOPPAGE_RULE_MISSING");
+      expect((e as Error).message).toContain('"Labour break"');
+      expect((e as Error).message).toContain("Stoppage rules");
+    }
+  });
+});

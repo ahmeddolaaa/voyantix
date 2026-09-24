@@ -64,6 +64,8 @@ export type LoadedStoppage = {
   /** null = still open; closed to the window end before tagging. */
   end: Date | null;
   reasonId: string;
+  /** For readable refusal messages only. */
+  reasonName?: string;
 };
 
 export type LoadedStoppageRule = {
@@ -144,6 +146,26 @@ function commencementTimeRuleOf(term: LoadedTerm): CommencementTimeRule {
     "COMMENCEMENT_TIME_RULE_UNRECOGNISED",
     `Cannot calculate: the commencement time rule "${r}" is not recognised.`
   );
+}
+
+/**
+ * Runs `fn`; a "stoppage reason has no rule" refusal is reworded with the
+ * reason's NAME and where to fix it (the engine only knows the id).
+ */
+function withReadableRefusals<T>(data: PortCallCalcData, fn: () => T): T {
+  try {
+    return fn();
+  } catch (e) {
+    if (e instanceof CalculationRefused && e.code === "STOPPAGE_RULE_MISSING" && e.subject) {
+      const name = data.stoppages.find((s) => s.reasonId === e.subject)?.reasonName ?? "a stoppage reason";
+      throw new CalculationRefused(
+        e.code,
+        `Cannot calculate: the term has no rule for the stoppage reason "${name}". Set it in the contract's Stoppage rules (does it count or not), then recalculate.`,
+        e.subject
+      );
+    }
+    throw e;
+  }
 }
 
 /** The laytime-end event in force: port-call override, else the term default. */
@@ -244,7 +266,7 @@ export function computePortCall(data: PortCallCalcData): PortCallComputation {
     return workedSet.has(toLocalDateKey(p.year, p.month, p.day));
   };
 
-  const result = calculatePortCall({
+  const result = withReadableRefusals(data, () => calculatePortCall({
     window: cw.window,
     timeZone: data.timeZone,
     excludedWeekdays: data.version.excludedWeekdays,
@@ -258,7 +280,7 @@ export function computePortCall(data: PortCallCalcData): PortCallComputation {
     stoppages,
     weatherEvents,
     didWorkOccur,
-  });
+  }));
 
   return {
     balance: result.balance,
@@ -404,7 +426,7 @@ export function computeProvisionalStatus(
     return workedSet.has(toLocalDateKey(p.year, p.month, p.day));
   };
 
-  const result = calculatePortCall({
+  const result = withReadableRefusals(data, () => calculatePortCall({
     window,
     timeZone: data.timeZone,
     excludedWeekdays: data.version.excludedWeekdays,
@@ -418,7 +440,7 @@ export function computeProvisionalStatus(
     stoppages,
     weatherEvents,
     didWorkOccur,
-  });
+  }));
 
   const usedSeconds = result.balance.usedSeconds;
   const remainingSeconds = allowedSeconds - usedSeconds;

@@ -83,6 +83,22 @@ export type StoppageCategory =
   | "BREAKDOWN"
   | "OTHER";
 
+/** Readable name per stoppage category — also the name a missing stoppage
+ *  reason is created with when a reviewed SOF is committed. */
+export const STOPPAGE_CATEGORY_LABEL: Record<StoppageCategory, string> = {
+  LABOUR_BREAK: "Labour break",
+  MEAL_BREAK: "Meal break",
+  RELIGIOUS: "Religious",
+  WEATHER: "Weather",
+  PORT_CLOSURE: "Port closure",
+  AWAITING_BERTH: "Awaiting berth",
+  AWAITING_INSTRUCTIONS: "Awaiting instructions",
+  SHIFTING: "Shifting",
+  NO_GANG: "No gang",
+  BREAKDOWN: "Breakdown",
+  OTHER: "Other",
+};
+
 /** A single extracted event. Times are local wall-clock in the port's zone. */
 export interface ExtractedEvent {
   type: LaytimeEventType;
