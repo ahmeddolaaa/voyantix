@@ -57,9 +57,9 @@ function reasonText(reasons: string[], treatment?: string): string {
   return reasons.map((r) => REASON_LABEL[r] ?? r).join(" · ");
 }
 
-function outcomeTone(outcome: string | null): "teal" | "rust" | "neutral" {
+function outcomeTone(outcome: string | null): "teal" | "coral" | "neutral" {
   if (outcome === "SAVED") return "teal";
-  if (outcome === "EXCEEDED") return "rust";
+  if (outcome === "EXCEEDED") return "coral";
   return "neutral";
 }
 
@@ -67,12 +67,12 @@ function settlementLine(
   s: SettlementView,
   /** Sheet-style balance (allowed − used) for the duration shown beside the amount. */
   shownBalance: number
-): { tone: "teal" | "rust" | "neutral"; text: string } {
+): { tone: "teal" | "coral" | "neutral"; text: string } {
   switch (s.status) {
     case "settled": {
       const st = s.settlement;
       if (st.kind === "demurrage")
-        return { tone: "rust", text: `Demurrage ${formatAmount(st.amount)} (${formatDurationSeconds(-shownBalance)} over)` };
+        return { tone: "coral", text: `Demurrage ${formatAmount(st.amount)} (${formatDurationSeconds(-shownBalance)} over)` };
       if (st.kind === "despatch")
         return { tone: "teal", text: `Despatch ${formatAmount(st.amount)} (${formatDurationSeconds(shownBalance)} saved)` };
       return {

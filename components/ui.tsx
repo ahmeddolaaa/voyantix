@@ -104,7 +104,7 @@ export function StatusBadge({
   tone,
   children,
 }: {
-  tone: "neutral" | "teal" | "rust" | "brass";
+  tone: "neutral" | "teal" | "rust" | "brass" | "coral";
   children: ReactNode;
 }) {
   const toneStyles: Record<string, { bg: string; fg: string }> = {
@@ -112,6 +112,7 @@ export function StatusBadge({
     teal: { bg: "var(--teal-soft)", fg: "var(--teal)" },
     rust: { bg: "var(--rust-soft)", fg: "#8a5a12" },
     brass: { bg: "var(--brass-soft)", fg: "var(--brass)" },
+    coral: { bg: "var(--coral-soft)", fg: "var(--coral)" },
   };
   const s = toneStyles[tone];
   return (

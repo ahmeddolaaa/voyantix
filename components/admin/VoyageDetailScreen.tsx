@@ -22,6 +22,7 @@ import { Field, TextInput, FormError, SubmitButton } from "@/components/forms";
 import { PortCallEvents } from "@/components/admin/PortCallEvents";
 import { PortCallStoppages } from "@/components/admin/PortCallStoppages";
 import { PortCallShifts } from "@/components/admin/PortCallShifts";
+import { PortCallLaytimeVisual } from "@/components/admin/PortCallLaytimeVisual";
 import { PortCallCalculation } from "@/components/admin/PortCallCalculation";
 import { PortCallProvisionalStatus } from "@/components/admin/PortCallProvisionalStatus";
 import { VoyageStatement } from "@/components/admin/VoyageStatement";
@@ -719,8 +720,14 @@ export function VoyageDetailScreen({
                       id={panelId("laytime")}
                       aria-labelledby={tabId("laytime")}
                       hidden={active !== "laytime"}
-                      className="pt-4 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-6 items-start"
+                      className="pt-4"
                     >
+                      <PortCallLaytimeVisual
+                        portCallId={c.id}
+                        timeZone={c.effectiveTimezone}
+                        refreshKey={`${calcVersion}:${c.laytimeEndOverride ?? ""}`}
+                      />
+                      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-6 items-start">
                       <div className="min-w-0 [&>*:first-child]:!mt-0 [&>*:first-child]:!pt-0 [&>*:first-child]:!border-t-0">
               {c.status === "ACTIVE" && (
                 <PortCallProvisionalStatus
@@ -745,6 +752,7 @@ export function VoyageDetailScreen({
                 }
                 onRecalculated={() => setCalcVersion((n) => n + 1)}
               />
+                      </div>
                       </div>
                     </div>
 

@@ -25,10 +25,10 @@ import { formatInstant, formatAmount } from "@/lib/format";
  * settlement-side ledger; they never touch the engine's balances.
  */
 
-function scopeSettlement(s: StatementScope): { tone: "rust" | "teal" | "neutral"; text: string } {
+function scopeSettlement(s: StatementScope): { tone: "coral" | "teal" | "neutral"; text: string } {
   switch (s.settlementKind) {
     case "demurrage":
-      return { tone: "rust", text: `Demurrage ${s.amount === null ? "" : formatAmount(s.amount)}` };
+      return { tone: "coral", text: `Demurrage ${s.amount === null ? "" : formatAmount(s.amount)}` };
     case "despatch":
       return { tone: "teal", text: `Despatch ${s.amount === null ? "" : formatAmount(s.amount)}` };
     case "none":
