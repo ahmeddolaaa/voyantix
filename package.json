@@ -10,7 +10,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:bootstrap": "tsx scripts/bootstrap.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:backup": "tsx scripts/db-backup.ts",
+    "demo:seed": "tsx scripts/demo-seed.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

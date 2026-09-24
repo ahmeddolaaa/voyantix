@@ -20,6 +20,7 @@ import { db } from "@/db/client";
 import {
   organizations, users, memberships, ports, voyages, voyagePortCalls,
   operationalEvents, operationalEventTypes, stoppageReasons, stoppages,
+  cargoes, cargoPlans,
 } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { hashPassword } from "@/lib/auth/password";
@@ -130,5 +131,24 @@ describe("commitExtraction — lashing / documents and repeat commits", () => {
       stoppages: [],
     });
     expect(again.ok && again.data.committedEvents).toBe(0);
+  });
+
+  it("records the document quantity as the actual when the call has one cargo plan", async () => {
+    const [c] = await db.insert(cargoes).values({ organizationId: orgId, name: `Rebar ${stamp}` }).returning();
+    await db.insert(cargoPlans).values({ organizationId: orgId, portCallId, cargoId: c.id, plannedQuantityMt: "3000" });
+    const r = await commitExtraction(portCallId, { events: [], stoppages: [], actualQuantityMt: 3052.403 });
+    expect(r.ok && r.data.actualQuantitySet).toBe(3052.403);
+    const [plan] = await db.select().from(cargoPlans).where(eq(cargoPlans.portCallId, portCallId));
+    expect(Number(plan.actualQuantityMt)).toBe(3052.403);
+    // No term on this port call: nothing to recalculate.
+    expect(r.ok && r.data.recalculated).toBeNull();
+  });
+
+  it("does not split a document quantity across several cargoes", async () => {
+    const [c2] = await db.insert(cargoes).values({ organizationId: orgId, name: `Wire ${stamp}` }).returning();
+    await db.insert(cargoPlans).values({ organizationId: orgId, portCallId, cargoId: c2.id, plannedQuantityMt: "1000" });
+    const r = await commitExtraction(portCallId, { events: [], stoppages: [], actualQuantityMt: 4000 });
+    expect(r.ok && r.data.actualQuantitySet).toBeNull();
+    expect(r.ok && r.data.skipped.some((x) => x.includes("several cargoes"))).toBe(true);
   });
 });

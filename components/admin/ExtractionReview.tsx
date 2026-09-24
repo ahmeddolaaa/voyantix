@@ -187,6 +187,8 @@ export function ExtractionReview({
     extraction.stoppages.map((s) => ({ ...s, included: true, origin: "ai" }))
   );
   const [committed, setCommitted] = useState(false);
+  // Record the document's quantity as the actual (needed by rate-based terms).
+  const [useQty, setUseQty] = useState(extraction.document.cargoQuantityMt != null);
   const [summary, setSummary] = useState<CommitSummary | null>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -210,6 +212,7 @@ export function ExtractionReview({
             startLocal: s.startLocal,
             endLocal: s.endLocal,
           })),
+        actualQuantityMt: useQty ? extraction.document.cargoQuantityMt : null,
       });
       if (r.ok) {
         setSummary(r.data);
@@ -470,6 +473,30 @@ export function ExtractionReview({
                   {summary.committedStoppages} stoppage
                   {summary.committedStoppages === 1 ? "" : "s"}.
                 </div>
+                {summary.actualQuantitySet != null && (
+                  <div className="text-[12px] mb-2" style={muted}>
+                    Actual quantity recorded: {summary.actualQuantitySet.toLocaleString("en-GB")} MT.
+                  </div>
+                )}
+                {summary.recalculated && (
+                  <div
+                    className="text-[12.5px] rounded p-2.5 mb-2"
+                    style={{
+                      background: summary.recalculated.outcome === "EXCEEDED" ? "var(--coral-soft)" : "var(--line-soft)",
+                      color: "var(--ink)",
+                    }}
+                  >
+                    {summary.recalculated.status === "calculated"
+                      ? `Laytime recalculated — ${
+                          summary.recalculated.outcome === "EXCEEDED"
+                            ? "time exceeded (demurrage)"
+                            : summary.recalculated.outcome === "SAVED"
+                              ? "time saved (despatch)"
+                              : "laytime used exactly"
+                        }. Open the voyage to see the timeline and build the statement.`
+                      : `Laytime could not be calculated yet (${summary.recalculated.refusalCode}). The voyage page says what is missing.`}
+                  </div>
+                )}
                 {summary.createdReasons.length > 0 && (
                   <div className="text-[11.5px] mb-2" style={muted}>
                     New stoppage reasons added: {summary.createdReasons.join(", ")}.
@@ -521,6 +548,20 @@ export function ExtractionReview({
                   <div className="text-[12px] mb-2" style={{ color: "var(--danger)" }}>
                     {commitError}
                   </div>
+                )}
+                {portCallId && doc.cargoQuantityMt != null && (
+                  <label className="flex items-start gap-2 text-[12.5px] mb-3 cursor-pointer" style={{ color: "var(--ink-soft)" }}>
+                    <input
+                      type="checkbox"
+                      checked={useQty}
+                      onChange={(e) => setUseQty(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Record <b className="num">{doc.cargoQuantityMt.toLocaleString("en-GB")} MT</b> from the document as the
+                      actual quantity
+                    </span>
+                  </label>
                 )}
                 <PrimaryButton
                   className="w-full"

@@ -229,6 +229,8 @@ Source files (uploaded 2026-09): MY FELLAS NOR/SOF loading, MY FELLAS laytime ca
 - Dashboard "Working now" cards show cargo progress (loaded/discharged vs plan) next to the laytime clock.
 - Build order: frame → sign-in → dashboard → voyage page (timeline B+C, cargo & loading) → statement → remaining screens; then Gemini SOF upload; then wipe + fictional demo data (backup first); then the LinkedIn video.
 
+**Demo data (2026-09-24):** `npm run db:backup` (JSON dump of every table, read-only) then `WIPE_CONFIRM=wipe-everything DEMO_PASSWORD=… npm run demo:seed` — TRUNCATEs every public table and builds the fictional company **Bulk Trading** (admin ahmed@bulk-trading.com "Ahmed Adel", operations karim@bulk-trading.com), 5 ports, 4 cargoes, 10 vessels, 3 contracts / 4 rate-based terms, 3 vessels working now (times relative to the run), 6 finished voyages over ~6 months (engine-calculated, statements built, 5 finalized) and **MV ATLAS DAWN** waiting for the SOF-upload demo (fictional agency SOF PDF made for it). Laytime/statements go through the real actions under a script session (`runWithSession`, AsyncLocalStorage; no request path sets it). SOF commit now records the document quantity as the actual (one cargo plan only) and recalculates straight away when no stoppage rule is missing.
+
 ## Phase 9 — Reporting · ⏳ FUTURE · OFFICIAL · 🛑 B6, B9
 **Purpose:** reports built on persisted engine output only — no fabricated figures.
 **Blocked by (withheld):** B6 reversible attribution (for reporting), B9 Achieved Rate formula (one report column).

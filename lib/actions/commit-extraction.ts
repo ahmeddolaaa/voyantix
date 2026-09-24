@@ -10,6 +10,7 @@ import {
   stoppages as stoppagesTable,
   contractStoppageRules,
   voyagePortCalls,
+  cargoPlans,
 } from "@/db/schema";
 import { authorized } from "@/lib/auth/authorized";
 import { ForbiddenError } from "@/lib/auth/session";
@@ -25,6 +26,7 @@ import { createStoppageReason } from "./stoppage-reasons";
 import { createEventType } from "./event-types";
 import { recordOperationalEvent } from "./operational-events";
 import { createStoppage } from "./stoppages";
+import { recalculatePortCall } from "./laytime-calculations";
 import { type ActionResult, ok, fail } from "./result";
 
 /**
@@ -57,6 +59,9 @@ export type CommitStoppage = {
 export type CommitPayload = {
   events: CommitEvent[];
   stoppages: CommitStoppage[];
+  /** The loaded/discharged quantity read off the document, when the analyst
+   *  confirmed it — recorded as the port call's actual quantity. */
+  actualQuantityMt?: number | null;
 };
 
 export type CommitSummary = {
@@ -69,6 +74,11 @@ export type CommitSummary = {
   reasonsWithoutRule: string[];
   /** Human-readable lines for everything that could not be committed. */
   skipped: string[];
+  /** The actual quantity recorded from the document, if any. */
+  actualQuantitySet: number | null;
+  /** The laytime was recalculated after the commit (term resolved and every
+   *  stoppage reason has a rule); the outcome, else null. */
+  recalculated: { status: "calculated" | "refused"; outcome: string | null; refusalCode: string | null } | null;
 };
 
 function toIso(local: string, timeZone: string): string | null {
@@ -290,6 +300,45 @@ export async function commitExtraction(
           .map((id) => reasons.find((r) => r.id === id)?.name ?? id);
       }
 
+      // Actual quantity from the document: only when the port call has
+      // exactly one cargo plan — splitting a document total across several
+      // cargoes would be a guess.
+      let actualQuantitySet: number | null = null;
+      const q = payload.actualQuantityMt;
+      if (q != null) {
+        if (!Number.isFinite(q) || q <= 0) {
+          skipped.push("Actual quantity: not a positive number.");
+        } else {
+          const plans = await db
+            .select({ id: cargoPlans.id })
+            .from(cargoPlans)
+            .where(and(eq(cargoPlans.portCallId, portCallId), eq(cargoPlans.organizationId, ctx.organizationId)));
+          if (plans.length === 1) {
+            await db
+              .update(cargoPlans)
+              .set({ actualQuantityMt: String(q), updatedAt: new Date() })
+              .where(and(eq(cargoPlans.id, plans[0].id), eq(cargoPlans.organizationId, ctx.organizationId)));
+            actualQuantitySet = q;
+          } else {
+            skipped.push(
+              plans.length === 0
+                ? "Actual quantity: the port call has no cargo plan to record it on."
+                : "Actual quantity: the port call has several cargoes — enter each actual on the voyage page."
+            );
+          }
+        }
+      }
+
+      // Recalculate straight away when nothing is missing, so the figures are
+      // ready on the voyage page. A missing stoppage rule is asked for first.
+      let recalculated: CommitSummary["recalculated"] = null;
+      if (pc.termId && reasonsWithoutRule.length === 0) {
+        const rc = await recalculatePortCall(portCallId);
+        if (rc.ok && rc.data.persisted) {
+          recalculated = { status: rc.data.status, outcome: rc.data.outcome, refusalCode: rc.data.refusalCode };
+        }
+      }
+
       // The voyage page (also when reached with the browser's Back button)
       // must show the newly recorded events, not a cached copy.
       try {
@@ -304,6 +353,8 @@ export async function commitExtraction(
         createdReasons,
         reasonsWithoutRule,
         skipped,
+        actualQuantitySet,
+        recalculated,
       });
     });
   } catch (e) {
