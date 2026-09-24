@@ -14,6 +14,7 @@ import { and, eq } from "drizzle-orm";
 import { authorized, recordAudit } from "@/lib/auth/authorized";
 import { ForbiddenError } from "@/lib/auth/session";
 import { type ActionResult, ok, fail } from "./result";
+import { loadSettlementDayPrecision } from "./_settlement-precision";
 import { settleBalance } from "@/lib/laytime/settlement";
 import { CalculationRefused } from "@/lib/laytime/refuse";
 
@@ -75,6 +76,8 @@ export async function buildStatementDraft(
             and(eq(voyages.id, voyageId), eq(voyages.organizationId, ctx.organizationId))
           );
         if (!voyage) return fail<BuildStatementResult>("NOT_FOUND", "Voyage not found.");
+
+        const dayPrecision = await loadSettlementDayPrecision(ctx.organizationId);
 
         // Every calculated/refused port call of the voyage, with its rates.
         const rows = await db
@@ -188,6 +191,7 @@ export async function buildStatementDraft(
                 demurrageRate: Number(r.demurrageRate),
                 despatchRate: r.despatchRate === null ? null : Number(r.despatchRate),
                 despatchBasis: r.despatchBasis,
+                dayPrecision,
               });
               if (s.kind === "demurrage") demurrageTotal += s.amount;
               if (s.kind === "despatch") despatchTotal += s.amount;

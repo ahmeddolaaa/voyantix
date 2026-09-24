@@ -2,6 +2,8 @@ import Link from "next/link";
 import { authorized } from "@/lib/auth/authorized";
 import { PageTitle, EmptyState, Card, SectionHeading } from "@/components/ui";
 import { permissionsFor } from "@/lib/auth/permissions";
+import { SettlementSettingsCard } from "@/components/admin/SettlementSettingsCard";
+import { loadSettlementDayPrecision } from "@/lib/actions/_settlement-precision";
 
 /**
  * Master-data sections, in the order an administrator sets them up: a port
@@ -28,6 +30,7 @@ const COMMERCIAL_SECTIONS: { label: string; href?: string; summary: string }[] =
 export default async function AdminPage() {
   const ctx = await authorized("admin.configuration", async (c) => c);
   const perms = permissionsFor(ctx.role);
+  const dayPrecision = await loadSettlementDayPrecision(ctx.organizationId);
 
   return (
     <div className="max-w-4xl w-full mx-auto px-8 py-8">
@@ -129,6 +132,8 @@ export default async function AdminPage() {
           )}
         </ul>
       </Card>
+
+      <SettlementSettingsCard initial={dayPrecision} />
     </div>
   );
 }

@@ -28,9 +28,9 @@
 
 ### Where things live
 - **Repo:** `github.com/ahmeddolaaa/voyantix`, branch **`rebuild`** (the only working branch; `main` is an old checkpoint `7abb42a`).
-- **Latest commit:** see `git log -1` on `rebuild` (the commit that added this line: amended GENCON 6(c) commencement) — full suite **482 tests green**, typecheck clean.
+- **Latest commit:** see `git log -1` on `rebuild` (the commit that added this line: amended GENCON 6(c) commencement) — full suite **492 tests green**, typecheck clean.
 - **Stack:** Next.js 16.3.3 (Turbopack) · React 19.2.8 · Drizzle ORM · PostgreSQL 16 · Vitest · tsx. Node ≥ 20.
-- **Migrations:** `0000`–`0018` (19 files). Latest three: `0016` term `once_on_demurrage`, `0017` stoppage-rule `excluded_on_demurrage`, `0018` term `commencement_time_rule`.
+- **Migrations:** `0000`–`0019` (20 files). Latest: `0017` stoppage-rule `excluded_on_demurrage`, `0018` term `commencement_time_rule`, `0019` org `settlement_day_precision` (+ CHECK).
 - **Production:** Railway — `https://voyantix-production.up.railway.app`, managed Postgres, deploys automatically from `origin/rebuild`. The start command (set in the Railway UI, not in the repo) runs `db:migrate`, then `db:bootstrap`, then `next start`. After a deploy, hard-refresh (Ctrl+Shift+R) — the browser cache has shown the old UI before.
 - **Login (demo):** `admin@demo.test` / `voyantix` — org "Demo Shipping Co." (slug `demo-shipping`).
 
@@ -80,7 +80,7 @@ Source files (uploaded 2026-09): MY FELLAS NOR/SOF loading, MY FELLAS laytime ca
 4. **Vision-LLM extraction** for SOF ingestion (Gemini: free tier trains on data → paid no-training tier for real customer documents). Review screen + commit already exist.
 5. **Input timezone** — `datetime-local` inputs still mean browser time, not port time (see Monitored issues).
 6. Still withheld: weather counting (B3/WWD), CountsAgainstOwner stoppages, pooled settlement rate (B7), B6/B9 reporting.
-7. **Settlement rounding — CONFLICTING EVIDENCE (needs Adel's call).** Shipped 2026-09-24: days rounded to 5 dp, amount to cents → matches MV YUFIX (i-Magellan) USD 28,706.04 exactly. But test_2 (manual sheet) multiplies the EXACT days: 3.4769735 × 4,375 = 15,211.76, while 5-dp gives 15,211.74. MY FELLAS prints 6 dp. One fixed rule cannot match every reference; options: keep 5 dp, go exact, or a bounded org/term setting (EXACT | 5 dp).
+7. ~~Settlement rounding~~ — **DONE 2026-09-24 as an ORGANIZATION setting** (Adel chose option 3): Administration → Settlement → Day rounding = `DECIMALS_5` (default, i-Magellan: YUFIX 28,706.04) or `EXACT` (manual sheets: test_2 15,211.76). Stored in `company_configurations.settlement_day_precision` (migration 0019, DB CHECK). Amount always rounded to cents. Applies to statements built/rebuilt after the change.
 8. **Partial weekend exception "Fri 17:00 → Mon 08:00 NTC even if used"** (MV YUFIX CP) — not expressible today (excluded weekdays are whole days). Did not affect YUFIX (OODAOD from Wednesday). Needs a bounded "excepted period between weekday+time and weekday+time" option when a real call hits it.
 9. **"Time used before commencement of laytime shall count"** (GENCON 6(c) last sentence) — not modelled: today nothing before the commencement instant counts. Needs evidence of how "time used" is recorded (e.g. OPS_COMMENCED before commencement) before building.
 
@@ -349,6 +349,7 @@ Cross-checked against handoff, architecture, frozen decisions, prior implementat
 | 2026-09-23 | NOR-after-12:00 CLOSED: `MORNING_NOR_1400` now implements amended GENCON 94 cl. 6(c) — ≤12:00 (inclusive) → 14:00 same day; after 12:00 → 08:00 next working day from the rule set's calendar (excluded weekdays + holidays). Kept the stored value (no migration); prior refusals become results, no computed result changes. 470 tests, browser-verified | Clause text supplied by Adel (GENCON 6(c) with 13→14, 06→08) | 6/8 | milestone | Open: office-hours validity, "time used before commencement shall count" |
 | 2026-09-24 | Settlement rounding: days rounded to 5 dp, amount to cents — matches i-Magellan (MV YUFIX USD 28,706.04). MV YUFIX golden test: all time figures exact. 477 tests, browser-verified (16 h over @ 10,000/day → 6,666.70) | Adel (MV YUFIX i-Magellan printout) | 7 | milestone | Despatch will use the same rounding |
 | 2026-09-24 | Despatch WTS built: saved = laytime balance, × despatch rate; ATS refused. test_2 golden (time exact). Found rounding conflict: test_2 uses exact days (15,211.76) vs i-Magellan 5 dp (YUFIX 28,706.04) — open. 482 tests, browser-verified (32 h saved @ 5,000/day → 6,666.65) | Adel (test_2 sheet) | 7 | milestone | Rounding decision pending |
+| 2026-09-24 | Settlement day rounding became an org setting (EXACT \| DECIMALS_5, default DECIMALS_5) — evidence conflicts between i-Magellan (5 dp) and manual sheets (exact). Migration 0019; admin-only action + audit; Administration → Settlement card. 492 tests, browser-verified (EXACT: 32 h @ 5,000 → 6,666.67) | Adel (option 3) | 7/8 | frozen | Both golden tests match their document under their own setting |
 | 2026-09-23 | Session context was summarised once; the NOR-after-12:00 clause Adel had given was lost. Roadmap CURRENT STATE rewritten as the handoff so a fresh session starts from the repo, not memory | Session | — | process | Start the next session by reading CURRENT STATE |
 
 ---

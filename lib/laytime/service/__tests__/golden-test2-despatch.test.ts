@@ -69,8 +69,21 @@ describe("GOLDEN — test_2 despatch (WTS)", () => {
     });
     expect(s.kind).toBe("despatch");
     if (s.kind !== "despatch") return;
+    // Default org rounding (5 dp): 3.47697 × 4,375
     expect(s.days).toBe(3.47697);
-    // Sheet: $15,211.76 (exact days). Current 5-dp rounding gives 15,211.74.
     expect(s.amount).toBe(15211.74);
+  });
+
+  it("with the EXACT org setting it matches the sheet: $15,211.76", () => {
+    const s = settleBalance({
+      outcome: r.balance.outcome,
+      balanceSeconds: r.allowedSeconds - r.balance.usedSeconds,
+      demurrageRate: 8750,
+      despatchRate: 4375,
+      despatchBasis: "WTS",
+      dayPrecision: "EXACT",
+    });
+    if (s.kind !== "despatch") throw new Error("expected despatch");
+    expect(s.amount).toBe(15211.76);
   });
 });

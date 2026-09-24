@@ -133,6 +133,12 @@ export const companyConfigurations = pgTable(
     defaultExcludedWeekdays: jsonb("default_excluded_weekdays")
       .notNull()
       .default(sql`'[]'::jsonb`),
+    // How demurrage/despatch days are rounded before × rate (see
+    // lib/laytime/settlement.ts): "DECIMALS_5" (i-Magellan convention,
+    // default) or "EXACT". The amount is always rounded to cents.
+    settlementDayPrecision: text("settlement_day_precision")
+      .notNull()
+      .default("DECIMALS_5"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

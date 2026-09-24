@@ -55,6 +55,38 @@ describe("settleBalance — rounding convention (MV YUFIX, i-Magellan)", () => {
   });
 });
 
+describe("settleBalance — EXACT day precision (org setting)", () => {
+  it("test_2: exact days × 4,375 = 15,211.76", () => {
+    const allowed = (10775.767 / 2500) * 86400;
+    const s = settleBalance({
+      outcome: "SAVED",
+      balanceSeconds: allowed - 20 * 3600,
+      demurrageRate: 8750,
+      despatchRate: 4375,
+      despatchBasis: "WTS",
+      dayPrecision: "EXACT",
+    });
+    if (s.kind !== "despatch") throw new Error("expected despatch");
+    expect(s.days).toBeCloseTo(3.4769735, 7);
+    expect(s.amount).toBe(15211.76);
+  });
+
+  it("MV YUFIX under EXACT gives 28,706.06 (vs 28,706.04 at 5 dp)", () => {
+    const allowed = (5723.738 / 4000) * 86400;
+    const used = 6 * 86400 + 5 * 3600 + 10 * 60;
+    const s = settleBalance({
+      outcome: "EXCEEDED",
+      balanceSeconds: allowed - used,
+      demurrageRate: 6000,
+      despatchRate: null,
+      despatchBasis: null,
+      dayPrecision: "EXACT",
+    });
+    if (s.kind !== "demurrage") throw new Error("expected demurrage");
+    expect(s.amount).toBe(28706.06);
+  });
+});
+
 describe("settleBalance — exact balance", () => {
   it("owes nothing", () => {
     const s = settleBalance({

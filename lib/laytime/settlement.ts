@@ -28,17 +28,36 @@ import type { BalanceOutcome } from "./accumulate";
 const SECONDS_PER_DAY = 86400;
 
 /**
- * Rounding convention (evidence: MV YUFIX i-Magellan calculation, adopted by
- * the product owner 2026-09-24): the time on demurrage is expressed in days
- * rounded to 5 decimals, and the amount is that rounded figure × the rate,
- * rounded to cents. "4.78434 days @ 6,000.000 / day = 28,706.04".
+ * Rounding convention — an ORGANIZATION setting (product owner, 2026-09-24),
+ * because the reference tools disagree:
+ *   DECIMALS_5 (default) — days rounded to 5 decimals, then × rate. Matches
+ *     i-Magellan: MV YUFIX "4.78434 days @ 6,000.000 / day = 28,706.04".
+ *   EXACT — the exact days × rate. Matches the manual test_2 sheet:
+ *     3.4769735 d × 4,375 = 15,211.76.
+ * Either way the amount is rounded to cents.
  */
-export const SETTLEMENT_DAY_DECIMALS = 5;
+export const SETTLEMENT_DAY_PRECISIONS = [
+  { value: "DECIMALS_5", label: "5 decimals (i-Magellan)" },
+  { value: "EXACT", label: "Exact (no rounding of days)" },
+] as const;
+
+export type SettlementDayPrecision = (typeof SETTLEMENT_DAY_PRECISIONS)[number]["value"];
+
+export function isSettlementDayPrecision(v: unknown): v is SettlementDayPrecision {
+  return SETTLEMENT_DAY_PRECISIONS.some((p) => p.value === v);
+}
+
+const SETTLEMENT_DAY_DECIMALS = 5;
 
 /** Half-up rounding to `decimals` places, robust to binary float noise. */
 export function roundHalfUp(value: number, decimals: number): number {
   const f = 10 ** decimals;
   return Math.round((value + Math.sign(value) * Number.EPSILON) * f) / f;
+}
+
+function settlementDays(seconds: number, precision: SettlementDayPrecision): number {
+  const days = seconds / SECONDS_PER_DAY;
+  return precision === "EXACT" ? days : roundHalfUp(days, SETTLEMENT_DAY_DECIMALS);
 }
 
 export type SettlementInput = {
@@ -51,6 +70,8 @@ export type SettlementInput = {
   despatchRate: number | null;
   /** "WTS" is settled; "ATS" and anything else are refused. */
   despatchBasis: string | null;
+  /** The organization's rounding convention; defaults to DECIMALS_5. */
+  dayPrecision?: SettlementDayPrecision;
 };
 
 export type Settlement =
@@ -73,7 +94,7 @@ export type Settlement =
 export function settleBalance(input: SettlementInput): Settlement {
   if (input.outcome === "EXCEEDED") {
     const exceededSeconds = -input.balanceSeconds; // balance is negative here
-    const days = roundHalfUp(exceededSeconds / SECONDS_PER_DAY, SETTLEMENT_DAY_DECIMALS);
+    const days = settlementDays(exceededSeconds, input.dayPrecision ?? "DECIMALS_5");
     return {
       kind: "demurrage",
       exceededSeconds,
@@ -97,7 +118,7 @@ export function settleBalance(input: SettlementInput): Settlement {
   // 4.3103068 − 0.8333333 = 3.4769735 days saved × $4,375.
   if (input.despatchBasis === "WTS") {
     const savedSeconds = input.balanceSeconds; // balance is positive here
-    const days = roundHalfUp(savedSeconds / SECONDS_PER_DAY, SETTLEMENT_DAY_DECIMALS);
+    const days = settlementDays(savedSeconds, input.dayPrecision ?? "DECIMALS_5");
     return {
       kind: "despatch",
       savedSeconds,

@@ -15,6 +15,7 @@ import { loadPortCallCalcData, type RawStoppage } from "./_calc-loader";
 import { computePortCall, type PortCallCalcData } from "@/lib/laytime/service/compute";
 import { CalculationRefused } from "@/lib/laytime/refuse";
 import { ENGINE_VERSION } from "@/lib/laytime/version";
+import { loadSettlementDayPrecision } from "./_settlement-precision";
 import { settleBalance, type Settlement } from "@/lib/laytime/settlement";
 
 /**
@@ -438,6 +439,8 @@ export async function settlePortCall(
           );
         if (!term) return fail<SettlementView>("NOT_FOUND", "Laytime term not found.");
 
+        const dayPrecision = await loadSettlementDayPrecision(ctx.organizationId);
+
         try {
           const settlement = settleBalance({
             outcome: calc.outcome!,
@@ -445,6 +448,7 @@ export async function settlePortCall(
             demurrageRate: Number(term.demurrageRate),
             despatchRate: term.despatchRate === null ? null : Number(term.despatchRate),
             despatchBasis: term.despatchBasis,
+            dayPrecision,
           });
           return ok<SettlementView>({ status: "settled", settlement });
         } catch (e) {
