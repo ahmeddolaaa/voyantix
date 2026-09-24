@@ -19,7 +19,7 @@ export function OrgSwitcher({
   // A user belonging to one company sees a label, not a control.
   if (organizations.length <= 1) {
     return (
-      <span className="text-[12px]" style={{ color: "#DCE7EE" }}>
+      <span className="text-[13px] font-semibold truncate" style={{ color: "#fff" }}>
         {active?.name ?? ""}
       </span>
     );
@@ -36,9 +36,9 @@ export function OrgSwitcher({
           router.refresh();
         });
       }}
-      className="text-[12px] rounded px-2 py-1"
+      className="text-[12.5px] font-semibold rounded-md px-1.5 py-0.5 max-w-[150px]"
       style={{
-        background: "#1B4661",
+        background: "#123b46",
         color: "#DCE7EE",
         border: "1px solid rgba(255,255,255,.12)",
       }}

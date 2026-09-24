@@ -1,40 +1,46 @@
 @import "tailwindcss";
 
 /*
- * VOYANTIX design tokens — enterprise maritime B2B.
- * Dark-teal brand, restrained gold accent, cool-grey canvas, Inter type.
+ * VOYANTIX design tokens — "Chart room" identity (F27, redesign 2026-09).
+ * Deep-sea ink, warm chart paper, brass accent; teal = laytime / on track,
+ * coral = demurrage / destructive, amber = warning, slate = stoppages.
  * Legacy token NAMES are kept so every existing component restyles from here;
- * their VALUES are remapped to the approved palette. Semantic states:
- *   teal  → active/success (green)   rust → warning (amber)
- *   brass → gold accent              danger → destructive (red)
+ * their VALUES are remapped to the approved palette.
  */
 :root {
-  --ink: #1e293b;
-  --ink-soft: #334155;
-  --steel: #64748b;
-  --navy: #0a3c42;      /* nav / brand primary (dark teal) */
-  --navy-2: #06272b;
-  --surface: #f4f6f8;   /* global page canvas (cool grey) */
-  --card: #ffffff;      /* cards, panels, tables, sheet */
-  --bg-subtle: #f8f9fa; /* subtle sections / table headers */
-  --bg: #f8f9fa;        /* legacy alias → subtle section fill */
-  --line: #e1e5e8;      /* borders / dividers */
-  --line-soft: #eef1f4;
+  --ink: #1b2b31;       /* body text */
+  --ink-soft: #4a5b61;
+  --steel: #6b7a7f;     /* secondary text */
+  --navy: #0b2a33;      /* sidebar / brand primary (deep-sea ink) */
+  --navy-2: #06202a;
+  --surface: #f4f1ea;   /* global page canvas (chart paper) */
+  --card: #ffffff;
+  --bg-subtle: #fbfaf6; /* table headers / subtle sections */
+  --bg: #fbfaf6;
+  --line: #e4ded2;
+  --line-soft: #efeae0;
 
-  --brand: #0a3c42;     /* primary actions (teal) */
-  --brand-2: #1a535c;   /* active/selected, secondary teal, links */
-  --gold: #c5a059;      /* restrained brand accent */
-  --gold-soft: #f4ecd9;
-  --brass: #c5a059;     /* legacy alias → gold accent */
-  --brass-soft: #f4ecd9;
+  --brand: #0b2a33;     /* primary actions */
+  --brand-2: #1e6f69;   /* links, active/selected */
+  --gold: #b8862f;      /* brass accent */
+  --gold-soft: #f6ecd6;
+  --brass: #b8862f;
+  --brass-soft: #f6ecd6;
+  --brass-light: #e9c77f;
 
-  --teal: #2e7d32;      /* active / success (green) */
-  --teal-soft: #e8f5e9;
-  --rust: #d97706;      /* warning / time-exceeded (amber) */
-  --rust-soft: #fef3c7;
-  --danger: #b3261e;    /* destructive (remove) */
-  --danger-soft: #fbe4e2;
-  --accent: #c5a059;
+  --teal: #1e6f69;      /* laytime / success */
+  --teal-soft: #ddeeea;
+  --rust: #b7791f;      /* warning */
+  --rust-soft: #fbefd5;
+  --danger: #c4472f;    /* demurrage / destructive */
+  --danger-soft: #f8e1da;
+  --coral: #c4472f;
+  --coral-soft: #f8e1da;
+  --slate: #51607e;     /* stoppages */
+  --slate-soft: #e3e7f0;
+  --accent: #b8862f;
+
+  --shadow-card: 0 1px 0 rgba(11, 42, 51, 0.03), 0 8px 24px -16px rgba(11, 42, 51, 0.18);
 }
 
 @theme inline {
@@ -62,9 +68,14 @@
   --color-danger-soft: var(--danger-soft);
   --color-accent: var(--accent);
 
-  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "Inter", ui-monospace, "SFMono-Regular", monospace;
+  --color-coral: var(--coral);
+  --color-coral-soft: var(--coral-soft);
+  --color-slate: var(--slate);
+  --color-slate-soft: var(--slate-soft);
+
+  --font-display: "Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 }
 
 ::selection {
@@ -98,7 +109,7 @@ h3,
 
 /* Tabular figures for all operational/financial numbers. */
 .num {
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
@@ -109,7 +120,7 @@ a {
 
 .vx-input {
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 10px;
   padding: 9px 11px;
   font-size: 13px;
   background: var(--card);
@@ -118,8 +129,30 @@ a {
   font-family: var(--font-sans);
 }
 .vx-input:focus {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--brass);
   outline-offset: 1px;
+}
+
+/* Small live indicator: a dot that pulses, used where a clock is running. */
+@keyframes vx-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(30, 111, 105, 0.45); }
+  70% { box-shadow: 0 0 0 8px rgba(30, 111, 105, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(30, 111, 105, 0); }
+}
+.vx-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--teal);
+  animation: vx-pulse 1.8s infinite;
+}
+@keyframes vx-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.vx-rise { animation: vx-rise 0.5s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  .vx-live, .vx-rise { animation: none; }
 }
 
 /* Print: statement documents print as clean paper — no app chrome, white
