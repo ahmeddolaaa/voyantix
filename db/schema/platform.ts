@@ -134,7 +134,7 @@ export const companyConfigurations = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     // How demurrage/despatch days are rounded before × rate (see
-    // lib/laytime/settlement.ts): "DECIMALS_5" (i-Magellan convention,
+    // lib/laytime/settlement.ts): "DECIMALS_5" (5-decimal convention,
     // default) or "EXACT". The amount is always rounded to cents.
     settlementDayPrecision: text("settlement_day_precision")
       .notNull()

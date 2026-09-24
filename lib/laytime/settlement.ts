@@ -31,13 +31,13 @@ const SECONDS_PER_DAY = 86400;
  * Rounding convention — an ORGANIZATION setting (product owner, 2026-09-24),
  * because the reference tools disagree:
  *   DECIMALS_5 (default) — days rounded to 5 decimals, then × rate. Matches
- *     i-Magellan: MV YUFIX "4.78434 days @ 6,000.000 / day = 28,706.04".
+ *     the MV YUFIX reference calculation: "4.78434 days @ 6,000 / day = 28,706.04".
  *   EXACT — the exact days × rate. Matches the manual test_2 sheet:
  *     3.4769735 d × 4,375 = 15,211.76.
  * Either way the amount is rounded to cents.
  */
 export const SETTLEMENT_DAY_PRECISIONS = [
-  { value: "DECIMALS_5", label: "5 decimals (i-Magellan)" },
+  { value: "DECIMALS_5", label: "5 decimals" },
   { value: "EXACT", label: "Exact (no rounding of days)" },
 ] as const;
 

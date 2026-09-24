@@ -3,7 +3,7 @@ import { computePortCall, type PortCallCalcData } from "../compute";
 import { settleBalance } from "../../settlement";
 
 /**
- * GOLDEN — MV YUFIX, discharging Gemlik (real i-Magellan calculation, printed
+ * GOLDEN — MV YUFIX, discharging Gemlik (real reference calculation, printed
  * 12.07.2026). Cargo 5,723.738 t @ 4,000 t/day, "If NOR before 12:00 time
  * counts 14:00 same day", non-reversible, once on demurrage always on
  * demurrage, demurrage USD 6,000/day.
@@ -47,7 +47,7 @@ const data: PortCallCalcData = {
   plannedQuantityMt: null,
 };
 
-describe("GOLDEN — MV YUFIX discharge (i-Magellan)", () => {
+describe("GOLDEN — MV YUFIX discharge (reference)", () => {
   const r = computePortCall(data);
 
   it("laytime starts Mon 06/07 14:00 local", () => {
@@ -62,13 +62,13 @@ describe("GOLDEN — MV YUFIX discharge (i-Magellan)", () => {
     expect(r.balance.usedSeconds).toBe(6 * 86400 + 5 * 3600 + 10 * 60);
   });
 
-  it("time lost 4.78434 days (i-Magellan's printed precision)", () => {
+  it("time lost 4.78434 days (the reference's printed precision)", () => {
     expect(r.balance.outcome).toBe("EXCEEDED");
     const lostDays = -(r.allowedSeconds - r.balance.usedSeconds) / 86400;
     expect(lostDays).toBeCloseTo(4.78434, 5);
   });
 
-  it("demurrage 4.78434 days × 6,000 = USD 28,706.04 (matches i-Magellan)", () => {
+  it("demurrage 4.78434 days × 6,000 = USD 28,706.04 (matches the reference)", () => {
     const s = settleBalance({
       outcome: r.balance.outcome,
       balanceSeconds: r.allowedSeconds - r.balance.usedSeconds,

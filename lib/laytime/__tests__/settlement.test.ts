@@ -20,7 +20,7 @@ describe("settleBalance — demurrage on an exceeded balance", () => {
   });
 });
 
-describe("settleBalance — rounding convention (MV YUFIX, i-Magellan)", () => {
+describe("settleBalance — rounding convention (MV YUFIX reference)", () => {
   it("rounds days to 5 decimals before applying the rate: 4.78434 × 6,000 = 28,706.04", () => {
     // allowed 5723.738/4000 d, used 6d 05h 10m → lost 4.7843432777… d
     const allowed = (5723.738 / 4000) * 86400;
