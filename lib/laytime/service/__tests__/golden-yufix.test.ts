@@ -68,7 +68,7 @@ describe("GOLDEN — MV YUFIX discharge (i-Magellan)", () => {
     expect(lostDays).toBeCloseTo(4.78434, 5);
   });
 
-  it("demurrage on the exact figure is 28,706.06 — i-Magellan prints 28,706.04 (rounds days to 5 dp first)", () => {
+  it("demurrage 4.78434 days × 6,000 = USD 28,706.04 (matches i-Magellan)", () => {
     const s = settleBalance({
       outcome: r.balance.outcome,
       balanceSeconds: r.allowedSeconds - r.balance.usedSeconds,
@@ -78,7 +78,7 @@ describe("GOLDEN — MV YUFIX discharge (i-Magellan)", () => {
     });
     expect(s.kind).toBe("demurrage");
     if (s.kind !== "demurrage") return;
-    expect(s.amount).toBeCloseTo(28706.06, 2);
-    expect(Math.round(s.days * 1e5) / 1e5 * 6000).toBeCloseTo(28706.04, 2);
+    expect(s.days).toBe(4.78434);
+    expect(s.amount).toBe(28706.04);
   });
 });

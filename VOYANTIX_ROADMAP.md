@@ -28,7 +28,7 @@
 
 ### Where things live
 - **Repo:** `github.com/ahmeddolaaa/voyantix`, branch **`rebuild`** (the only working branch; `main` is an old checkpoint `7abb42a`).
-- **Latest commit:** see `git log -1` on `rebuild` (the commit that added this line: amended GENCON 6(c) commencement) — full suite **470 tests green**, typecheck clean.
+- **Latest commit:** see `git log -1` on `rebuild` (the commit that added this line: amended GENCON 6(c) commencement) — full suite **477 tests green**, typecheck clean.
 - **Stack:** Next.js 16.3.3 (Turbopack) · React 19.2.8 · Drizzle ORM · PostgreSQL 16 · Vitest · tsx. Node ≥ 20.
 - **Migrations:** `0000`–`0018` (19 files). Latest three: `0016` term `once_on_demurrage`, `0017` stoppage-rule `excluded_on_demurrage`, `0018` term `commencement_time_rule`.
 - **Production:** Railway — `https://voyantix-production.up.railway.app`, managed Postgres, deploys automatically from `origin/rebuild`. The start command (set in the Railway UI, not in the repo) runs `db:migrate`, then `db:bootstrap`, then `next start`. After a deploy, hard-refresh (Ctrl+Shift+R) — the browser cache has shown the old UI before.
@@ -80,7 +80,7 @@ Source files (uploaded 2026-09): MY FELLAS NOR/SOF loading, MY FELLAS laytime ca
 4. **Vision-LLM extraction** for SOF ingestion (Gemini: free tier trains on data → paid no-training tier for real customer documents). Review screen + commit already exist.
 5. **Input timezone** — `datetime-local` inputs still mean browser time, not port time (see Monitored issues).
 6. Still withheld: weather counting (B3/WWD), CountsAgainstOwner stoppages, pooled settlement rate (B7), B6/B9 reporting.
-7. **Demurrage amount rounding** — MV YUFIX golden (`golden-yufix.test.ts`): the engine reproduces start, allowed, used (6d 05h 10m) and lost (4.78434 d) exactly, but the amount is USD 28,706.06 on the exact figure vs i-Magellan's 28,706.04 (it rounds days to 5 dp before × rate). MY FELLAS sheet shows 6 dp (3.867949). Rounding convention = Adel's call; not changed.
+7. ~~Demurrage amount rounding~~ — **DONE 2026-09-24**: settlement rounds days to 5 decimals, then amount = days × rate rounded to cents (i-Magellan convention, MV YUFIX: 4.78434 × 6,000 = 28,706.04 — golden test exact). Applies to newly built/rebuilt statements; finalized statements keep their stored amounts.
 8. **Partial weekend exception "Fri 17:00 → Mon 08:00 NTC even if used"** (MV YUFIX CP) — not expressible today (excluded weekdays are whole days). Did not affect YUFIX (OODAOD from Wednesday). Needs a bounded "excepted period between weekday+time and weekday+time" option when a real call hits it.
 9. **"Time used before commencement of laytime shall count"** (GENCON 6(c) last sentence) — not modelled: today nothing before the commencement instant counts. Needs evidence of how "time used" is recorded (e.g. OPS_COMMENCED before commencement) before building.
 
@@ -347,6 +347,7 @@ Cross-checked against handoff, architecture, frozen decisions, prior implementat
 | 2026-09-23 | AN-2 CLOSED — once on demurrage, always on demurrage + per-stoppage-reason exceptions (`95d6238`, migrations 0016–0017). Stoppage rules UI added (none existed). Fix: term versioning now copies stoppage rules | Adel's documents + PO request | 6/7/8 | milestone | Golden test reproduces MY FELLAS loading exactly |
 | 2026-09-23 | Bounded term vocabulary (`8457d9a`, migration 0018): commencement event, commencement time rule, turn-time trigger, allowance unit, despatch basis are dropdowns validated server-side | Self-audit | 3/8 | milestone | Free text the engine would refuse is rejected at save |
 | 2026-09-23 | NOR-after-12:00 CLOSED: `MORNING_NOR_1400` now implements amended GENCON 94 cl. 6(c) — ≤12:00 (inclusive) → 14:00 same day; after 12:00 → 08:00 next working day from the rule set's calendar (excluded weekdays + holidays). Kept the stored value (no migration); prior refusals become results, no computed result changes. 470 tests, browser-verified | Clause text supplied by Adel (GENCON 6(c) with 13→14, 06→08) | 6/8 | milestone | Open: office-hours validity, "time used before commencement shall count" |
+| 2026-09-24 | Settlement rounding: days rounded to 5 dp, amount to cents — matches i-Magellan (MV YUFIX USD 28,706.04). MV YUFIX golden test: all time figures exact. 477 tests, browser-verified (16 h over @ 10,000/day → 6,666.70) | Adel (MV YUFIX i-Magellan printout) | 7 | milestone | Despatch will use the same rounding |
 | 2026-09-23 | Session context was summarised once; the NOR-after-12:00 clause Adel had given was lost. Roadmap CURRENT STATE rewritten as the handoff so a fresh session starts from the repo, not memory | Session | — | process | Start the next session by reading CURRENT STATE |
 
 ---

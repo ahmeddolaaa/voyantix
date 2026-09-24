@@ -20,6 +20,41 @@ describe("settleBalance — demurrage on an exceeded balance", () => {
   });
 });
 
+describe("settleBalance — rounding convention (MV YUFIX, i-Magellan)", () => {
+  it("rounds days to 5 decimals before applying the rate: 4.78434 × 6,000 = 28,706.04", () => {
+    // allowed 5723.738/4000 d, used 6d 05h 10m → lost 4.7843432777… d
+    const allowed = (5723.738 / 4000) * 86400;
+    const used = 6 * 86400 + 5 * 3600 + 10 * 60;
+    const s = settleBalance({
+      outcome: "EXCEEDED",
+      balanceSeconds: allowed - used,
+      demurrageRate: 6000,
+      despatchRate: null,
+      despatchBasis: null,
+    });
+    expect(s.kind).toBe("demurrage");
+    if (s.kind === "demurrage") {
+      expect(s.days).toBe(4.78434);
+      expect(s.amount).toBe(28706.04);
+    }
+  });
+
+  it("amount is rounded to cents", () => {
+    // 1 hour over at 1000/day: days 0.04167 → 41.67
+    const s = settleBalance({
+      outcome: "EXCEEDED",
+      balanceSeconds: -3600,
+      demurrageRate: 1000,
+      despatchRate: null,
+      despatchBasis: null,
+    });
+    if (s.kind === "demurrage") {
+      expect(s.days).toBe(0.04167);
+      expect(s.amount).toBe(41.67);
+    }
+  });
+});
+
 describe("settleBalance — exact balance", () => {
   it("owes nothing", () => {
     const s = settleBalance({

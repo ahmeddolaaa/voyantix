@@ -7,7 +7,8 @@
  *
  *   - EXCEEDED  → demurrage owed by the charterer. The rate is a per-running-
  *     day rate (consistent with the running-day allowance unit), pro-rated by
- *     the exceeded time: amount = (excessSeconds / 86400) × demurrageRate.
+ *     the exceeded time: days = excessSeconds / 86400 rounded to 5 decimals,
+ *     amount = days × demurrageRate rounded to cents (see rounding below).
  *   - EXACT     → no amount either way.
  *   - SAVED     → despatch MAY be owed to the charterer. Despatch is optional
  *     (PO3): with no despatchRate it is simply not configured, and nothing is
@@ -27,6 +28,20 @@ import { CalculationRefused } from "./refuse";
 import type { BalanceOutcome } from "./accumulate";
 
 const SECONDS_PER_DAY = 86400;
+
+/**
+ * Rounding convention (evidence: MV YUFIX i-Magellan calculation, adopted by
+ * the product owner 2026-09-24): the time on demurrage is expressed in days
+ * rounded to 5 decimals, and the amount is that rounded figure × the rate,
+ * rounded to cents. "4.78434 days @ 6,000.000 / day = 28,706.04".
+ */
+export const SETTLEMENT_DAY_DECIMALS = 5;
+
+/** Half-up rounding to `decimals` places, robust to binary float noise. */
+export function roundHalfUp(value: number, decimals: number): number {
+  const f = 10 ** decimals;
+  return Math.round((value + Math.sign(value) * Number.EPSILON) * f) / f;
+}
 
 export type SettlementInput = {
   outcome: BalanceOutcome;
@@ -61,13 +76,13 @@ export type Settlement =
 export function settleBalance(input: SettlementInput): Settlement {
   if (input.outcome === "EXCEEDED") {
     const exceededSeconds = -input.balanceSeconds; // balance is negative here
-    const days = exceededSeconds / SECONDS_PER_DAY;
+    const days = roundHalfUp(exceededSeconds / SECONDS_PER_DAY, SETTLEMENT_DAY_DECIMALS);
     return {
       kind: "demurrage",
       exceededSeconds,
       days,
       rate: input.demurrageRate,
-      amount: days * input.demurrageRate,
+      amount: roundHalfUp(days * input.demurrageRate, 2),
     };
   }
 
