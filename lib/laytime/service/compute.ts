@@ -265,6 +265,10 @@ export type ProvisionalStatus = {
   quantityIsActual: boolean;
   window: { start: Date; end: Date };
   asOf: Date;
+  /** When a (single) OPS_COMPLETED event is recorded, counting stops there —
+      the meter must not keep running for a finished operation. Null while
+      operations are still in progress. */
+  operationsCompletedAt: Date | null;
 };
 
 /**
@@ -326,8 +330,18 @@ export function computeProvisionalStatus(
     calendarOf(data)
   );
 
+  // Operations completed: counting stops at completion, never at "now".
+  // Only an unambiguous single live OPS_COMPLETED is used; with none (or an
+  // ambiguous pair, which the final calculation refuses) the meter runs to now.
+  const completions = engineEvents.filter((e) => e.semantic === "OPS_COMPLETED");
+  const operationsCompletedAt = completions.length === 1 ? completions[0].occurredAt : null;
+  const countUntil =
+    operationsCompletedAt !== null && operationsCompletedAt.getTime() < asOf.getTime()
+      ? operationsCompletedAt
+      : asOf;
+
   // Counting has not begun as of this instant: nothing used yet.
-  if (asOf.getTime() <= start.getTime()) {
+  if (countUntil.getTime() <= start.getTime()) {
     return {
       allowedSeconds,
       usedSeconds: 0,
@@ -336,10 +350,11 @@ export function computeProvisionalStatus(
       quantityIsActual,
       window: { start, end: start },
       asOf,
+      operationsCompletedAt,
     };
   }
 
-  const window = { start, end: asOf };
+  const window = { start, end: countUntil };
   const stoppages: StoppageSpan[] = data.stoppages.map((s) => ({
     start: s.start,
     end: s.end ?? window.end,
@@ -380,5 +395,6 @@ export function computeProvisionalStatus(
     quantityIsActual,
     window,
     asOf,
+    operationsCompletedAt,
   };
 }

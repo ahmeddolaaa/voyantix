@@ -36,8 +36,22 @@ const REASON_LABEL: Record<string, string> = {
   ON_DEMURRAGE: "On demurrage",
 };
 
-function reasonText(reasons: string[]): string {
+/** Why a day would normally not count (the cause, not the intermediate steps). */
+const CAUSE_REASONS = ["STOPPAGE_EXCLUDED", "EXCLUDED_WEEKDAY", "HOLIDAY"];
+
+function reasonText(reasons: string[], treatment?: string): string {
   if (reasons.length === 0) return "Counted";
+  // Once on demurrage, an otherwise-excepted period counts: say that plainly
+  // instead of listing "kept excluded" next to a Counted badge.
+  if (reasons.includes("ON_DEMURRAGE") && treatment === "COUNTED") {
+    const causes = reasons.filter((r) => CAUSE_REASONS.includes(r));
+    if (causes.length === 0) return "On demurrage";
+    return `${causes.map((r) => REASON_LABEL[r] ?? r).join(" · ")} — counts (on demurrage)`;
+  }
+  if (reasons.includes("EXCEPTED_ON_DEMURRAGE")) {
+    const causes = reasons.filter((r) => CAUSE_REASONS.includes(r));
+    return `${causes.map((r) => REASON_LABEL[r] ?? r).join(" · ") || "Excepted"} — still excepted on demurrage`;
+  }
   return reasons.map((r) => REASON_LABEL[r] ?? r).join(" · ");
 }
 
@@ -234,7 +248,7 @@ export function PortCallCalculation({
                         {formatInstant(new Date(iv.end), timeZone)}
                       </span>
                       <span className="inline-flex items-center gap-2">
-                        <span style={{ color: "var(--ink-soft)" }}>{reasonText(iv.reasons)}</span>
+                        <span style={{ color: "var(--ink-soft)" }}>{reasonText(iv.reasons, iv.treatment)}</span>
                         {iv.countedFraction >= 1 ? (
                           <StatusBadge tone="teal">Counted</StatusBadge>
                         ) : iv.countedFraction <= 0 ? (

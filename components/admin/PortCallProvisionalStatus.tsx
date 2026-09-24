@@ -145,15 +145,20 @@ export function PortCallProvisionalStatus({
         )
       : 0;
 
-  const heroLabel = s.onDemurrage ? "On demurrage" : "Time to demurrage";
+  const completed = s.operationsCompletedAt != null;
+  const heroLabel = completed
+    ? s.onDemurrage ? "Completed on demurrage" : "Completed within laytime"
+    : s.onDemurrage ? "On demurrage" : "Time to demurrage";
   const heroValue = formatDurationSeconds(Math.abs(s.remainingSeconds));
-  const heroSuffix = s.onDemurrage ? "over" : "left";
+  const heroSuffix = s.onDemurrage ? "over" : completed ? "saved" : "left";
 
-  const warnLine = s.onDemurrage
-    ? "Laytime is used up — every counted hour now accrues demurrage."
-    : zone === "approaching"
-      ? "Approaching the limit — demurrage is close."
-      : null;
+  const warnLine = completed
+    ? null
+    : s.onDemurrage
+      ? "Laytime is used up — every counted hour now accrues demurrage."
+      : zone === "approaching"
+        ? "Approaching the limit — demurrage is close."
+        : null;
 
   return (
     <div className="mt-4 pt-4" style={border}>
@@ -162,7 +167,7 @@ export function PortCallProvisionalStatus({
           <span className="relative inline-flex h-2 w-2">
             <span
               className="absolute inline-flex h-full w-full rounded-full opacity-70"
-              style={{ background: color, animation: "pcps-ping 1.6s cubic-bezier(0,0,.2,1) infinite" }}
+              style={{ background: color, animation: completed ? "none" : "pcps-ping 1.6s cubic-bezier(0,0,.2,1) infinite" }}
             />
             <span
               className="relative inline-flex rounded-full h-2 w-2"
@@ -173,7 +178,7 @@ export function PortCallProvisionalStatus({
             className="text-[12.5px]"
             style={{ fontWeight: 500, color: "var(--ink-soft)" }}
           >
-            Live laytime status
+            {completed ? "Laytime status" : "Live laytime status"}
           </span>
         </span>
         <span
@@ -266,6 +271,15 @@ export function PortCallProvisionalStatus({
         <div>
           Counting from {formatInstant(new Date(s.window.start), timeZone)}
         </div>
+        {s.operationsCompletedAt ? (
+          <div>
+            Operations completed{" "}
+            <span className="num">
+              {formatInstant(new Date(s.operationsCompletedAt), timeZone)}
+            </span>{" "}
+            — counting stopped. The laytime calculation is the settled figure.
+          </div>
+        ) : (
         <div className="flex items-center gap-1.5">
           <span>
             As of{" "}
@@ -289,6 +303,7 @@ export function PortCallProvisionalStatus({
           )}
           {refreshing && <span style={{ opacity: 0.7 }}>· updating…</span>}
         </div>
+        )}
         {!s.quantityIsActual && (
           <div>
             Provisional — allowance from planned quantity. The settled figure

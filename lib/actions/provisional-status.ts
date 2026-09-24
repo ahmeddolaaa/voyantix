@@ -29,6 +29,8 @@ export type ProvisionalSuccess = {
   onDemurrage: boolean;
   /** True = allowance used ACTUAL cargo quantity; false = PLANNED (provisional). */
   quantityIsActual: boolean;
+  /** Set when operations completed: counting stopped there. */
+  operationsCompletedAt: Date | null;
 };
 
 export type ProvisionalRefusal = {
@@ -72,6 +74,7 @@ export async function getProvisionalStatus(
             remainingSeconds: s.remainingSeconds,
             onDemurrage: s.onDemurrage,
             quantityIsActual: s.quantityIsActual,
+            operationsCompletedAt: s.operationsCompletedAt,
           });
         } catch (e) {
           if (e instanceof CalculationRefused) {

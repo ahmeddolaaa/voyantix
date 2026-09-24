@@ -287,3 +287,32 @@ describe("computePortCall — commencement time rule from the term", () => {
     );
   });
 });
+
+describe("computeProvisionalStatus — stops at operations completed", () => {
+  // Reproduces the production report: ops completed 28/06 but the port call was
+  // still ACTIVE, and the meter kept counting to "now" (91 days over).
+  const events = [
+    { semantic: "NOR_ACCEPTED", occurredAt: D("2026-06-12T05:00:00Z") },
+    { semantic: "OPS_COMPLETED", occurredAt: D("2026-06-15T05:00:00Z") },
+  ];
+
+  it("caps the window at OPS_COMPLETED when now is later", () => {
+    const s = computeProvisionalStatus(base({ events }), D("2026-09-24T05:00:00Z"));
+    expect(s.window.end.toISOString()).toBe("2026-06-15T05:00:00.000Z");
+    expect(s.usedSeconds).toBe(2 * 86400); // same as the final calculation
+    expect(s.operationsCompletedAt?.toISOString()).toBe("2026-06-15T05:00:00.000Z");
+  });
+
+  it("agrees with computePortCall once operations are complete", () => {
+    const final = computePortCall(base({ events }));
+    const s = computeProvisionalStatus(base({ events }), D("2026-09-24T05:00:00Z"));
+    expect(s.usedSeconds).toBe(final.balance.usedSeconds);
+  });
+
+  it("still runs to now while operations are in progress", () => {
+    const running = [events[0]];
+    const s = computeProvisionalStatus(base({ events: running }), D("2026-06-14T05:00:00Z"));
+    expect(s.window.end.toISOString()).toBe("2026-06-14T05:00:00.000Z");
+    expect(s.operationsCompletedAt).toBeNull();
+  });
+});

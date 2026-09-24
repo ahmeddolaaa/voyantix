@@ -171,7 +171,10 @@ export default async function VoyageDetailPage({
         terms && terms.ok
           ? terms.data.map((t) => ({
               id: t.id,
-              label: `${t.function} · ${t.allowance} ${t.allowanceUnit}`,
+              label:
+                t.allowanceBasis === "RATE"
+                  ? `${t.function} · ${t.allowanceRate} MT/day`
+                  : `${t.function} · ${t.allowance} ${t.allowanceUnit}`,
               portId: t.portId,
               cargoId: t.cargoId,
             }))
