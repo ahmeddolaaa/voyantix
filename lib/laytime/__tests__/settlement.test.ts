@@ -82,7 +82,41 @@ describe("settleBalance — saved balance", () => {
     if (s.kind === "none") expect(s.reason).toBe("NO_DESPATCH_CONFIGURED");
   });
 
-  it("refuses a configured despatch because the basis is withheld", () => {
+  it("WTS: despatch = saved balance × despatch rate (test_2: 3.47697 d × 4,375)", () => {
+    const allowed = (10775.767 / 2500) * 86400;
+    const used = 20 * 3600;
+    const s = settleBalance({
+      outcome: "SAVED",
+      balanceSeconds: allowed - used,
+      demurrageRate: 8750,
+      despatchRate: 4375,
+      despatchBasis: "WTS",
+    });
+    expect(s.kind).toBe("despatch");
+    if (s.kind === "despatch") {
+      expect(s.savedSeconds).toBeCloseTo(allowed - used, 6);
+      expect(s.days).toBe(3.47697);
+      expect(s.amount).toBe(15211.74); // test_2 prints 15,211.76 on exact days — rounding open
+    }
+  });
+
+  it("refuses ATS rather than projecting time saved", () => {
+    try {
+      settleBalance({
+        outcome: "SAVED",
+        balanceSeconds: 2 * 86400,
+        demurrageRate: 1000,
+        despatchRate: 500,
+        despatchBasis: "ATS",
+      });
+      throw new Error("should have refused");
+    } catch (e) {
+      expect(e).toBeInstanceOf(CalculationRefused);
+      expect((e as CalculationRefused).code).toBe("DESPATCH_ATS_UNDEFINED");
+    }
+  });
+
+  it("refuses an unknown basis", () => {
     try {
       settleBalance({
         outcome: "SAVED",
@@ -93,7 +127,6 @@ describe("settleBalance — saved balance", () => {
       });
       throw new Error("should have refused");
     } catch (e) {
-      expect(e).toBeInstanceOf(CalculationRefused);
       expect((e as CalculationRefused).code).toBe("DESPATCH_BASIS_WITHHELD");
     }
   });

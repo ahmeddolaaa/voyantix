@@ -54,14 +54,19 @@ function settlementLine(s: SettlementView): { tone: "teal" | "rust" | "neutral";
       if (st.kind === "demurrage")
         return { tone: "rust", text: `Demurrage ${formatAmount(st.amount)} (${formatDurationSeconds(st.exceededSeconds)} over)` };
       if (st.kind === "despatch")
-        return { tone: "teal", text: `Despatch ${formatAmount(st.amount)}` };
+        return { tone: "teal", text: `Despatch ${formatAmount(st.amount)} (${formatDurationSeconds(st.savedSeconds)} saved)` };
       return {
         tone: "neutral",
         text: st.reason === "NO_DESPATCH_CONFIGURED" ? "Nothing owed (no despatch configured)" : "Nothing owed",
       };
     }
     case "settlement_refused":
-      return { tone: "neutral", text: "Despatch owed, but its basis is not defined" };
+      return {
+        tone: "neutral",
+        text: s.code === "DESPATCH_ATS_UNDEFINED"
+          ? "Despatch owed, but the ATS basis is not calculated yet"
+          : "Despatch owed, but no despatch basis is set on the term",
+      };
     case "calculation_refused":
       return { tone: "neutral", text: "Not settleable — the calculation was refused" };
     case "no_calculation":

@@ -11,12 +11,10 @@
  *     amount = days × demurrageRate rounded to cents (see rounding below).
  *   - EXACT     → no amount either way.
  *   - SAVED     → despatch MAY be owed to the charterer. Despatch is optional
- *     (PO3): with no despatchRate it is simply not configured, and nothing is
- *     owed. When a despatchRate IS configured, the saved-time MEASURE depends
- *     on despatchBasis, whose vocabulary is WITHHELD (B-level). This layer
- *     therefore REFUSES to compute a configured despatch rather than assuming
- *     "all time saved" or any other basis — exactly as the engine refuses an
- *     undefined semantic upstream.
+ *     (PO3): with no despatchRate nothing is owed. With a rate, the basis
+ *     decides the saved-time measure: WTS (working time saved) = the laytime
+ *     balance itself (evidence: test_2 sheet). ATS is refused (not evidenced);
+ *     a missing basis is refused.
  *
  * Pooled settlement rate selection (B7) is a different, withheld concern and
  * is not handled here.
@@ -51,8 +49,7 @@ export type SettlementInput = {
   demurrageRate: number;
   /** Per-running-day despatch rate, or null when despatch is not configured. */
   despatchRate: number | null;
-  /** The despatch basis; its vocabulary is withheld, so any configured value
-   *  is refused rather than interpreted. */
+  /** "WTS" is settled; "ATS" and anything else are refused. */
   despatchBasis: string | null;
 };
 
@@ -95,11 +92,34 @@ export function settleBalance(input: SettlementInput): Settlement {
     return { kind: "none", reason: "NO_DESPATCH_CONFIGURED" };
   }
 
-  // A despatch rate is configured, but the saved-time basis is withheld.
+  // WTS — working time saved: the saved time IS the laytime balance
+  // (allowed − used, both already in laytime terms). Evidence: test_2 sheet,
+  // 4.3103068 − 0.8333333 = 3.4769735 days saved × $4,375.
+  if (input.despatchBasis === "WTS") {
+    const savedSeconds = input.balanceSeconds; // balance is positive here
+    const days = roundHalfUp(savedSeconds / SECONDS_PER_DAY, SETTLEMENT_DAY_DECIMALS);
+    return {
+      kind: "despatch",
+      savedSeconds,
+      days,
+      rate: input.despatchRate,
+      amount: roundHalfUp(days * input.despatchRate, 2),
+    };
+  }
+
+  // ATS (all time saved) needs laytime projected past completion through the
+  // excepted periods — not evidenced yet. Any other/missing basis: withheld.
+  if (input.despatchBasis === "ATS") {
+    throw new CalculationRefused(
+      "DESPATCH_ATS_UNDEFINED",
+      "Cannot settle despatch: the all-time-saved (ATS) basis is not defined yet. " +
+        "Only working time saved (WTS) is calculated."
+    );
+  }
   throw new CalculationRefused(
     "DESPATCH_BASIS_WITHHELD",
     "Cannot settle despatch: a despatch rate is configured but the despatch " +
-      "basis (which saved time despatch is paid on) is not defined. Establish " +
-      "the despatch basis before settling."
+      "basis (which saved time despatch is paid on) is not set. Choose a " +
+      "despatch basis on the term."
   );
 }

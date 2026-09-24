@@ -727,7 +727,7 @@ export function ContractDetailScreen({
             </Field>
             <Field
               label="Despatch basis"
-              description="Despatch settlement is not calculated yet — a call with time saved and a despatch rate is refused."
+              description="WTS: despatch = laytime saved (allowed − used) × despatch rate. ATS is not calculated yet and is refused."
             >
               {(a) => (
                 <select {...a} value={termForm.despatchBasis} disabled={pending}
