@@ -25,6 +25,14 @@ export const COMMENCEMENT_TIME_RULES = [
   },
 ] as const;
 
+/** Which recorded event ends laytime. The term sets the default; a port call
+ *  may override it for one vessel (e.g. documents signed very late). */
+export const LAYTIME_END_EVENTS = [
+  { value: "OPS_COMPLETED", label: "Operations completed" },
+  { value: "LASHING_COMPLETED", label: "Lashing completed" },
+  { value: "DOCUMENTS_ON_BOARD", label: "Documents on board" },
+] as const;
+
 export const ALLOWANCE_UNITS = [
   { value: "days", label: "Days" },
   { value: "hours", label: "Hours" },

@@ -8,9 +8,11 @@ import {
   type PersistedCalculation,
   type SettlementView,
 } from "@/lib/actions/laytime-calculations";
+import { setPortCallLaytimeEnd } from "@/lib/actions/voyage-port-calls";
+import { LAYTIME_END_EVENTS, labelOf } from "@/lib/laytime/term-vocabulary";
 import { SecondaryButton, StatusBadge } from "@/components/ui";
 import { FormError } from "@/components/forms";
-import { formatInstant, formatDurationSeconds, formatAmount } from "@/lib/format";
+import { formatInstant, formatDurationSeconds, formatAmount, sheetBalanceSeconds } from "@/lib/format";
 
 /**
  * Laytime calculation for one port call.
@@ -61,14 +63,18 @@ function outcomeTone(outcome: string | null): "teal" | "rust" | "neutral" {
   return "neutral";
 }
 
-function settlementLine(s: SettlementView): { tone: "teal" | "rust" | "neutral"; text: string } {
+function settlementLine(
+  s: SettlementView,
+  /** Sheet-style balance (allowed − used) for the duration shown beside the amount. */
+  shownBalance: number
+): { tone: "teal" | "rust" | "neutral"; text: string } {
   switch (s.status) {
     case "settled": {
       const st = s.settlement;
       if (st.kind === "demurrage")
-        return { tone: "rust", text: `Demurrage ${formatAmount(st.amount)} (${formatDurationSeconds(st.exceededSeconds)} over)` };
+        return { tone: "rust", text: `Demurrage ${formatAmount(st.amount)} (${formatDurationSeconds(-shownBalance)} over)` };
       if (st.kind === "despatch")
-        return { tone: "teal", text: `Despatch ${formatAmount(st.amount)} (${formatDurationSeconds(st.savedSeconds)} saved)` };
+        return { tone: "teal", text: `Despatch ${formatAmount(st.amount)} (${formatDurationSeconds(shownBalance)} saved)` };
       return {
         tone: "neutral",
         text: st.reason === "NO_DESPATCH_CONFIGURED" ? "Nothing owed (no despatch configured)" : "Nothing owed",
@@ -91,9 +97,17 @@ function settlementLine(s: SettlementView): { tone: "teal" | "rust" | "neutral";
 export function PortCallCalculation({
   portCallId,
   timeZone,
+  termLaytimeEnd = null,
+  laytimeEndOverride = null,
+  onLaytimeEndChanged,
 }: {
   portCallId: string;
   timeZone: string;
+  /** The resolved term's default laytime-end event (null = no term). */
+  termLaytimeEnd?: string | null;
+  /** This port call's override (null = follow the term). */
+  laytimeEndOverride?: string | null;
+  onLaytimeEndChanged?: (value: string | null) => void;
 }) {
   const [calc, setCalc] = useState<PersistedCalculation | null>(null);
   const [settlement, setSettlement] = useState<SettlementView | null>(null);
@@ -135,8 +149,29 @@ export function PortCallCalculation({
     });
   }
 
+  /** Change where laytime ends for THIS vessel, then recalculate in one step. */
+  function changeLaytimeEnd(value: string) {
+    const next = value === "" ? null : value;
+    setError(null);
+    startTransition(async () => {
+      const saved = await setPortCallLaytimeEnd(portCallId, next);
+      if (!saved.ok) {
+        setError(saved.message);
+        return;
+      }
+      onLaytimeEndChanged?.(saved.data.laytimeEndOverride);
+      const r = await recalculatePortCall(portCallId);
+      if (!r.ok) {
+        setError(r.message);
+        return;
+      }
+      await load();
+    });
+  }
+
   const border = { borderTop: "1px solid var(--line)" } as const;
   const muted = { color: "var(--steel)" } as const;
+  const termEndLabel = labelOf(LAYTIME_END_EVENTS, termLaytimeEnd ?? "OPS_COMPLETED") ?? "Operations completed";
 
   return (
     <div className="mt-4 pt-4" style={border}>
@@ -152,6 +187,27 @@ export function PortCallCalculation({
           {pending ? "Calculating…" : "Recalculate"}
         </SecondaryButton>
       </div>
+
+      {termLaytimeEnd !== null && (
+        <div className="flex flex-wrap items-center gap-2 mb-2.5">
+          <label htmlFor={`laytime-end-${portCallId}`} className="text-[12px]" style={muted}>
+            Laytime ends at
+          </label>
+          <select
+            id={`laytime-end-${portCallId}`}
+            value={laytimeEndOverride ?? ""}
+            disabled={pending}
+            onChange={(e) => changeLaytimeEnd(e.target.value)}
+            className="px-2 py-1 rounded text-[12.5px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+            style={{ background: "var(--card)", border: "1px solid var(--line)", color: "var(--ink)" }}
+          >
+            <option value="">{termEndLabel} (term default)</option>
+            {LAYTIME_END_EVENTS.filter((o) => o.value !== (termLaytimeEnd ?? "OPS_COMPLETED") || o.value === laytimeEndOverride).map((o) => (
+              <option key={o.value} value={o.value}>{o.label} — this vessel only</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {error && <FormError message={error} />}
 
@@ -194,7 +250,7 @@ export function PortCallCalculation({
             </span>
             <span>
               <span style={muted}>Balance </span>
-              <span className="num">{formatDurationSeconds(calc.balanceSeconds ?? 0)}</span>
+              <span className="num">{formatDurationSeconds(sheetBalanceSeconds(calc.allowedSeconds ?? 0, calc.usedSeconds ?? 0))}</span>
             </span>
             <StatusBadge tone={outcomeTone(calc.outcome)}>
               {calc.outcome === "SAVED"
@@ -215,7 +271,7 @@ export function PortCallCalculation({
           {settlement && (
             <div className="mt-2">
               {(() => {
-                const s = settlementLine(settlement);
+                const s = settlementLine(settlement, sheetBalanceSeconds(calc.allowedSeconds ?? 0, calc.usedSeconds ?? 0));
                 return <StatusBadge tone={s.tone}>{s.text}</StatusBadge>;
               })()}
             </div>

@@ -177,6 +177,7 @@ export default async function VoyageDetailPage({
                   : `${t.function} · ${t.allowance} ${t.allowanceUnit}`,
               portId: t.portId,
               cargoId: t.cargoId,
+              laytimeEndEvent: t.laytimeEndEvent,
             }))
           : []
       }

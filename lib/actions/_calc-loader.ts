@@ -60,6 +60,7 @@ export async function loadPortCallCalcData(
     .select({
       timeZone: voyagePortCalls.effectiveTimezone,
       termId: voyagePortCalls.contractLaytimeTermId,
+      laytimeEndOverride: voyagePortCalls.laytimeEndOverride,
     })
     .from(voyagePortCalls)
     .where(
@@ -82,6 +83,7 @@ export async function loadPortCallCalcData(
       turnTimeHours: contractLaytimeTerms.turnTimeHours,
       turnTimeTrigger: contractLaytimeTerms.turnTimeTrigger,
       onceOnDemurrage: contractLaytimeTerms.onceOnDemurrage,
+      laytimeEndEvent: contractLaytimeTerms.laytimeEndEvent,
       ruleSetVersionId: contractLaytimeTerms.ruleSetVersionId,
     })
     .from(contractLaytimeTerms)
@@ -239,6 +241,7 @@ export async function loadPortCallCalcData(
       turnTimeHours: term.turnTimeHours,
       turnTimeTrigger: term.turnTimeTrigger,
       onceOnDemurrage: term.onceOnDemurrage,
+      laytimeEndEvent: term.laytimeEndEvent,
     },
     version: {
       excludedWeekdays: version.excludedWeekdays,
@@ -252,6 +255,7 @@ export async function loadPortCallCalcData(
     workedLocalDates,
     actualQuantityMt,
     plannedQuantityMt,
+    laytimeEndOverride: portCall.laytimeEndOverride,
   };
 
   return {

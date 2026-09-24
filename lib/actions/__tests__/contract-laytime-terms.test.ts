@@ -230,6 +230,21 @@ describe("createContractLaytimeTerm — bounded vocabulary", () => {
   it("rejects the 14:00 rule combined with turn time", () =>
     bad({ commencementTimeRule: "MORNING_NOR_1400", turnTimeHours: "6", turnTimeTrigger: "NOR_TENDERED" }));
   it("rejects an unknown despatch basis", () => bad({ despatchBasis: "whatever" }));
+  it("rejects an unknown laytime end event", () => bad({ laytimeEndEvent: "SAILED" }));
+
+  it("stores the laytime end event; defaults to OPS_COMPLETED", async () => {
+    currentToken = adminToken;
+    const withEnd = await createContractLaytimeTerm(contractA, validTerm({ laytimeEndEvent: "LASHING_COMPLETED" }));
+    const noEnd = await createContractLaytimeTerm(contractA, validTerm({}));
+    expect(withEnd.ok && noEnd.ok).toBe(true);
+    if (!withEnd.ok || !noEnd.ok) return;
+    const rows = await db
+      .select({ id: contractLaytimeTerms.id, e: contractLaytimeTerms.laytimeEndEvent })
+      .from(contractLaytimeTerms)
+      .where(eq(contractLaytimeTerms.contractId, contractA));
+    expect(rows.find((r) => r.id === withEnd.data.id)?.e).toBe("LASHING_COMPLETED");
+    expect(rows.find((r) => r.id === noEnd.data.id)?.e).toBe("OPS_COMPLETED");
+  });
 
   it("accepts NOR tendered + the 14:00 rule and stores it", async () => {
     currentToken = adminToken;

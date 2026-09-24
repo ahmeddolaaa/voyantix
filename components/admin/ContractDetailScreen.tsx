@@ -20,6 +20,7 @@ import { TermStoppageRules } from "@/components/admin/TermStoppageRules";
 import {
   COMMENCEMENT_EVENTS,
   COMMENCEMENT_TIME_RULES,
+  LAYTIME_END_EVENTS,
   ALLOWANCE_UNITS,
   DESPATCH_BASES,
   isOneOf,
@@ -75,8 +76,15 @@ type TermFormState = {
   commencementTimeRule: string;
   /** "YES" | "NO" — once on demurrage, always on demurrage. */
   onceOnDemurrage: string;
+  /** Default laytime-end event for port calls on this term. */
+  laytimeEndEvent: string;
   poolId: string;
 };
+
+/** The usual laytime end: lashing completed for a load, completion for a discharge. */
+function defaultLaytimeEnd(fn: string): string {
+  return fn === "LOAD" ? "LASHING_COMPLETED" : "OPS_COMPLETED";
+}
 const emptyTermForm: TermFormState = {
   function: "LOAD",
   portId: "",
@@ -94,6 +102,7 @@ const emptyTermForm: TermFormState = {
   commencementRule: "NOR_TENDERED",
   commencementTimeRule: "AT_EVENT",
   onceOnDemurrage: "NO",
+  laytimeEndEvent: "LASHING_COMPLETED",
   poolId: "",
 };
 
@@ -279,6 +288,7 @@ export function ContractDetailScreen({
       commencementRule: t.commencementRule,
       commencementTimeRule: t.commencementTimeRule ?? "AT_EVENT",
       onceOnDemurrage: t.onceOnDemurrage ? "YES" : "NO",
+      laytimeEndEvent: t.laytimeEndEvent ?? "OPS_COMPLETED",
       poolId: t.poolId ?? "",
     });
     setTermFieldErrors({});
@@ -310,6 +320,7 @@ export function ContractDetailScreen({
       commencementRule: termForm.commencementRule,
       commencementTimeRule: termForm.commencementTimeRule,
       onceOnDemurrage: termForm.onceOnDemurrage === "YES",
+      laytimeEndEvent: termForm.laytimeEndEvent,
       poolId: termForm.poolId || null,
     };
     startTransition(async () => {
@@ -339,6 +350,7 @@ export function ContractDetailScreen({
         commencementRule: termForm.commencementRule,
         commencementTimeRule: termForm.commencementTimeRule,
         onceOnDemurrage: termForm.onceOnDemurrage === "YES",
+        laytimeEndEvent: termForm.laytimeEndEvent,
         ruleSetVersionId: termForm.ruleSetVersionId,
         poolId: termForm.poolId || null,
         status: termEditing?.status ?? "active",
@@ -596,7 +608,12 @@ export function ContractDetailScreen({
             <Field label="Function" required>
               {(a) => (
                 <select {...a} value={termForm.function} disabled={pending}
-                  onChange={(e) => updateTermField("function", e.target.value)}
+                  onChange={(e) => {
+                    updateTermField("function", e.target.value);
+                    // New terms follow the usual end for the operation; an
+                    // existing term keeps what was configured.
+                    if (!termEditing) updateTermField("laytimeEndEvent", defaultLaytimeEnd(e.target.value));
+                  }}
                   className="px-3 py-2 rounded-md text-[13px] w-full" style={selectStyle}>
                   <option value="LOAD">LOAD</option>
                   <option value="DISCHARGE">DISCHARGE</option>
@@ -821,6 +838,25 @@ export function ContractDetailScreen({
               </div>
             </>
           )}
+
+          <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>LAYTIME END</p>
+          <div className="grid md:grid-cols-2 gap-x-6">
+            <Field
+              label="Laytime ends at"
+              required
+              description="The usual end for port calls on this term. A single port call can be changed from its voyage page."
+            >
+              {(a) => (
+                <select {...a} value={termForm.laytimeEndEvent} disabled={pending}
+                  onChange={(e) => updateTermField("laytimeEndEvent", e.target.value)}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                  {LAYTIME_END_EVENTS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          </div>
 
           <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>POOL</p>
           <div className="grid md:grid-cols-2 gap-x-6">

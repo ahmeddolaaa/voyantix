@@ -44,6 +44,8 @@ import { CalculationRefused } from "../refuse";
 import {
   type CommencementTimeRule,
   type CommencementCalendar,
+  type LaytimeEndEvent,
+  isLaytimeEndEvent,
 } from "../commencement";
 import { getLocalParts } from "../timezone";
 import { toLocalDateKey } from "../calendar-classification";
@@ -98,6 +100,8 @@ export type LoadedTerm = {
   turnTimeTrigger: string | null;
   /** "Once on demurrage, always on demurrage" clause. */
   onceOnDemurrage: boolean;
+  /** The term's default laytime-end event (OPS_COMPLETED when absent). */
+  laytimeEndEvent?: string;
 };
 
 export type PortCallCalcData = {
@@ -117,6 +121,9 @@ export type PortCallCalcData = {
   /** Total PLANNED cargo quantity (MT); used for the provisional running view
       before actuals exist. Null if none planned. */
   plannedQuantityMt: string | null;
+  /** Per-port-call override of the term's laytime-end event (e.g. documents
+      delayed on this vessel). Null/absent = use the term's default. */
+  laytimeEndOverride?: string | null;
 };
 
 export type PortCallComputation = {
@@ -135,6 +142,16 @@ function commencementTimeRuleOf(term: LoadedTerm): CommencementTimeRule {
   throw new CalculationRefused(
     "COMMENCEMENT_TIME_RULE_UNRECOGNISED",
     `Cannot calculate: the commencement time rule "${r}" is not recognised.`
+  );
+}
+
+/** The laytime-end event in force: port-call override, else the term default. */
+export function laytimeEndEventOf(data: PortCallCalcData): LaytimeEndEvent {
+  const v = data.laytimeEndOverride ?? data.term.laytimeEndEvent ?? "OPS_COMPLETED";
+  if (isLaytimeEndEvent(v)) return v;
+  throw new CalculationRefused(
+    "LAYTIME_END_EVENT_UNRECOGNISED",
+    `Cannot calculate: the laytime end event "${v}" is not recognised.`
   );
 }
 
@@ -180,7 +197,8 @@ export function computePortCall(data: PortCallCalcData): PortCallComputation {
     data.timeZone,
     commencementTimeRuleOf(data.term),
     undefined,
-    calendarOf(data)
+    calendarOf(data),
+    laytimeEndEventOf(data)
   );
 
   const stoppages: StoppageSpan[] = data.stoppages.map((s) => ({
@@ -265,7 +283,7 @@ export type ProvisionalStatus = {
   quantityIsActual: boolean;
   window: { start: Date; end: Date };
   asOf: Date;
-  /** When a (single) OPS_COMPLETED event is recorded, counting stops there —
+  /** When the (single) laytime-end event is recorded, counting stops there —
       the meter must not keep running for a finished operation. Null while
       operations are still in progress. */
   operationsCompletedAt: Date | null;
@@ -330,10 +348,11 @@ export function computeProvisionalStatus(
     calendarOf(data)
   );
 
-  // Operations completed: counting stops at completion, never at "now".
-  // Only an unambiguous single live OPS_COMPLETED is used; with none (or an
+  // Laytime ended (the configured end event is recorded): counting stops
+  // there, never at "now". Only an unambiguous single live event is used; with none (or an
   // ambiguous pair, which the final calculation refuses) the meter runs to now.
-  const completions = engineEvents.filter((e) => e.semantic === "OPS_COMPLETED");
+  const endEvent = laytimeEndEventOf(data);
+  const completions = engineEvents.filter((e) => e.semantic === endEvent);
   const operationsCompletedAt = completions.length === 1 ? completions[0].occurredAt : null;
   const countUntil =
     operationsCompletedAt !== null && operationsCompletedAt.getTime() < asOf.getTime()

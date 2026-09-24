@@ -9,7 +9,7 @@ import { eq, and } from "drizzle-orm";
 /**
  * PROTECTED OPERATIONAL EVENT TYPES
  * ---------------------------------------------------------------------------
- * These eight rows are NOT demo data. They are product infrastructure: the
+ * These rows are NOT demo data. They are product infrastructure: the
  * laytime engine (Phase 6) resolves commencement, turn time and weather
  * against systemSemantic, so an organization without them cannot calculate
  * at all.
@@ -37,6 +37,8 @@ const PROTECTED_EVENT_TYPE_DEFAULTS: ReadonlyArray<{
   { semantic: "BERTHED", code: "berthed", label: "Berthed", displayOrder: 30 },
   { semantic: "OPS_COMMENCED", code: "ops_commenced", label: "Operations Commenced", displayOrder: 40 },
   { semantic: "OPS_COMPLETED", code: "ops_completed", label: "Operations Completed", displayOrder: 50 },
+  { semantic: "LASHING_COMPLETED", code: "lashing_completed", label: "Lashing Completed", displayOrder: 52 },
+  { semantic: "DOCUMENTS_ON_BOARD", code: "documents_on_board", label: "Documents on Board", displayOrder: 54 },
   { semantic: "DEPARTED", code: "departed", label: "Departed", displayOrder: 60 },
   { semantic: "WEATHER_START", code: "weather_start", label: "Weather Stoppage Started", displayOrder: 70 },
   { semantic: "WEATHER_END", code: "weather_end", label: "Weather Stoppage Ended", displayOrder: 80 },

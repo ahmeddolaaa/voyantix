@@ -286,6 +286,10 @@ export const contractLaytimeTerms = pgTable(
     // laytime exceptions (excluded days, holidays, stoppages) stop applying and
     // all subsequent time counts. Default off = prior behaviour.
     onceOnDemurrage: boolean("once_on_demurrage").notNull().default(false),
+    // Which recorded event ends laytime by default for port calls on this
+    // term: OPS_COMPLETED | LASHING_COMPLETED | DOCUMENTS_ON_BOARD. A port
+    // call may override it (voyage_port_calls.laytime_end_override).
+    laytimeEndEvent: text("laytime_end_event").notNull().default("OPS_COMPLETED"),
 
     // references
     ruleSetVersionId: uuid("rule_set_version_id").notNull(),

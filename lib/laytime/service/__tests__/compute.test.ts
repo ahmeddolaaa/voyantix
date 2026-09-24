@@ -5,6 +5,7 @@ import {
   type PortCallCalcData,
 } from "../compute";
 import { CalculationRefused } from "../../refuse";
+import { settleBalance } from "../../settlement";
 import { getLocalParts } from "../../timezone";
 import { toLocalDateKey } from "../../calendar-classification";
 
@@ -314,5 +315,100 @@ describe("computeProvisionalStatus — stops at operations completed", () => {
     const s = computeProvisionalStatus(base({ events: running }), D("2026-06-14T05:00:00Z"));
     expect(s.window.end.toISOString()).toBe("2026-06-14T05:00:00.000Z");
     expect(s.operationsCompletedAt).toBeNull();
+  });
+});
+
+describe("computePortCall — laytime end event (term default + port-call override)", () => {
+  // NOR accepted 06-12T05:00Z + 24h turn time → counting from 06-13T05:00Z.
+  const events = [
+    { semantic: "NOR_ACCEPTED", occurredAt: D("2026-06-12T05:00:00Z") },
+    { semantic: "OPS_COMPLETED", occurredAt: D("2026-06-15T05:00:00Z") },
+    { semantic: "LASHING_COMPLETED", occurredAt: D("2026-06-15T06:00:00Z") },
+    { semantic: "DOCUMENTS_ON_BOARD", occurredAt: D("2026-06-15T15:00:00Z") },
+  ];
+
+  it("defaults to OPS_COMPLETED (prior behaviour)", () => {
+    const r = computePortCall(base({ events }));
+    expect(r.window.end.toISOString()).toBe("2026-06-15T05:00:00.000Z");
+  });
+
+  it("term default LASHING_COMPLETED ends at lashing", () => {
+    const r = computePortCall(base({ events, term: { ...base().term, laytimeEndEvent: "LASHING_COMPLETED" } }));
+    expect(r.window.end.toISOString()).toBe("2026-06-15T06:00:00.000Z");
+    expect(r.balance.usedSeconds).toBe(2 * 86400 + 3600);
+  });
+
+  it("port-call override DOCUMENTS_ON_BOARD beats the term default", () => {
+    const r = computePortCall(
+      base({
+        events,
+        term: { ...base().term, laytimeEndEvent: "LASHING_COMPLETED" },
+        laytimeEndOverride: "DOCUMENTS_ON_BOARD",
+      })
+    );
+    expect(r.window.end.toISOString()).toBe("2026-06-15T15:00:00.000Z");
+  });
+
+  it("refuses when the chosen end event is not recorded — no fallback", () => {
+    const noLashing = events.filter((e) => e.semantic !== "LASHING_COMPLETED");
+    try {
+      computePortCall(base({ events: noLashing, term: { ...base().term, laytimeEndEvent: "LASHING_COMPLETED" } }));
+      throw new Error("should have refused");
+    } catch (e) {
+      expect(e).toBeInstanceOf(CalculationRefused);
+      expect((e as CalculationRefused).code).toBe("WINDOW_END_EVENT_MISSING");
+    }
+  });
+
+  it("refuses an unknown end event", () => {
+    expect(() => computePortCall(base({ events, laytimeEndOverride: "SAILED" }))).toThrow(CalculationRefused);
+  });
+
+  it("provisional status stops at the configured end event", () => {
+    const s = computeProvisionalStatus(
+      base({ events, laytimeEndOverride: "DOCUMENTS_ON_BOARD" }),
+      D("2026-09-24T05:00:00Z")
+    );
+    expect(s.window.end.toISOString()).toBe("2026-06-15T15:00:00.000Z");
+  });
+});
+
+describe("GOLDEN — MY FELLAS loading through the app path (documents on board)", () => {
+  // Real calculation sheet: laytime Tue 23/06 14:00 → documents on board Sun 28/06
+  // 11:15; used 4d 21h 15m; allowed 1.017468 d; on demurrage 3.867949 d; $13,537.82.
+  const data = base({
+    term: {
+      allowanceBasis: "RATE", allowance: "0", allowanceUnit: "days", allowanceRate: "3000",
+      commencementRule: "NOR_TENDERED", commencementTimeRule: "MORNING_NOR_1400",
+      turnTimeHours: null, turnTimeTrigger: null, onceOnDemurrage: true,
+      laytimeEndEvent: "LASHING_COMPLETED",
+    },
+    laytimeEndOverride: "DOCUMENTS_ON_BOARD",
+    version: { excludedWeekdays: [5, 6], eiuApplies: true, weatherApplies: false },
+    events: [
+      { semantic: "NOR_TENDERED", occurredAt: D("2026-06-22T21:01:00Z") }, // 23/06 00:01
+      { semantic: "OPS_COMPLETED", occurredAt: D("2026-06-27T21:05:00Z") }, // 28/06 00:05
+      { semantic: "LASHING_COMPLETED", occurredAt: D("2026-06-27T21:10:00Z") }, // 00:10
+      { semantic: "DOCUMENTS_ON_BOARD", occurredAt: D("2026-06-28T08:15:00Z") }, // 11:15
+    ],
+    actualQuantityMt: "3052.403",
+  });
+
+  it("used 4d 21h 15m and 3.867949 days on demurrage", () => {
+    const r = computePortCall(data);
+    expect(r.window.start.toISOString()).toBe("2026-06-23T11:00:00.000Z");
+    expect(r.balance.usedSeconds).toBe(4 * 86400 + 21 * 3600 + 15 * 60);
+    expect((r.balance.usedSeconds - r.allowedSeconds) / 86400).toBeCloseTo(3.867949, 6);
+  });
+
+  it("demurrage $13,537.82 at $3,500/day with EXACT day rounding (the sheet's convention)", () => {
+    const r = computePortCall(data);
+    const s = settleBalance({
+      outcome: r.balance.outcome,
+      balanceSeconds: r.allowedSeconds - r.balance.usedSeconds,
+      demurrageRate: 3500, despatchRate: null, despatchBasis: null, dayPrecision: "EXACT",
+    });
+    if (s.kind !== "demurrage") throw new Error("expected demurrage");
+    expect(s.amount).toBe(13537.82);
   });
 });

@@ -17,6 +17,7 @@ import { type ActionResult, ok, fail, withDatabaseErrors } from "./result";
 import {
   COMMENCEMENT_EVENTS,
   COMMENCEMENT_TIME_RULES,
+  LAYTIME_END_EVENTS,
   ALLOWANCE_UNITS,
   DESPATCH_BASES,
   isOneOf,
@@ -62,6 +63,7 @@ export type ContractLaytimeTermRow = {
   commencementRule: string;
   commencementTimeRule: string;
   onceOnDemurrage: boolean;
+  laytimeEndEvent: string;
   ruleSetVersionId: string;
   poolId: string | null;
   status: "active" | "inactive";
@@ -104,6 +106,8 @@ export type ContractLaytimeTermInput = {
   commencementTimeRule?: string | null;
   /** "Once on demurrage, always on demurrage" clause (default false). */
   onceOnDemurrage?: boolean | null;
+  /** Default laytime-end event (OPS_COMPLETED | LASHING_COMPLETED | DOCUMENTS_ON_BOARD). */
+  laytimeEndEvent?: string | null;
   ruleSetVersionId: string;
   poolId?: string | null;
 };
@@ -124,6 +128,7 @@ type ValidatedTerm = {
   commencementRule: string;
   commencementTimeRule: string;
   onceOnDemurrage: boolean;
+  laytimeEndEvent: string;
   ruleSetVersionId: string;
   poolId: string | null;
 };
@@ -211,6 +216,11 @@ function validateTermInput(
     );
   }
 
+  const laytimeEndEvent = trimOrNull(input.laytimeEndEvent) ?? "OPS_COMPLETED";
+  if (!isOneOf(LAYTIME_END_EVENTS, laytimeEndEvent)) {
+    return fail("VALIDATION_ERROR", "Choose the event laytime ends at.");
+  }
+
   const despatchBasis = trimOrNull(input.despatchBasis);
   if (despatchBasis !== null && !isOneOf(DESPATCH_BASES, despatchBasis)) {
     return fail("VALIDATION_ERROR", "An invalid despatch basis was provided.");
@@ -237,6 +247,7 @@ function validateTermInput(
     commencementRule,
     commencementTimeRule,
     onceOnDemurrage: input.onceOnDemurrage === true,
+    laytimeEndEvent,
     ruleSetVersionId,
     poolId: trimOrNull(input.poolId),
   });
@@ -396,6 +407,7 @@ export async function createContractLaytimeTerm(
           commencementRule: v.commencementRule,
           commencementTimeRule: v.commencementTimeRule,
           onceOnDemurrage: v.onceOnDemurrage,
+          laytimeEndEvent: v.laytimeEndEvent,
           ruleSetVersionId: v.ruleSetVersionId,
           poolId: v.poolId,
         })
@@ -490,6 +502,7 @@ export async function updateContractLaytimeTerm(
         commencementRule: v.commencementRule,
         commencementTimeRule: v.commencementTimeRule,
         onceOnDemurrage: v.onceOnDemurrage,
+        laytimeEndEvent: v.laytimeEndEvent,
         ruleSetVersionId: v.ruleSetVersionId,
         poolId: v.poolId,
       };

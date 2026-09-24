@@ -7,7 +7,10 @@
  *     turnTimeTrigger + turnTimeHours; when no turn time is configured, it
  *     begins at the commencementRule event. (commencementRule is used only in
  *     the no-turn-time path.)
- *   - Window END: counting stops at the OPS_COMPLETED event.
+ *   - Window END: counting stops at the term's laytime-end event
+ *     (OPS_COMPLETED by default; LASHING_COMPLETED or DOCUMENTS_ON_BOARD when
+ *     configured — 2026-09-24). A missing end event is a refusal, never a
+ *     fallback to another event.
  *
  * The turn-time interval itself sits BEFORE the countable window (the grace
  * period), so it is returned for provenance but is not part of the counted
@@ -24,6 +27,7 @@ import {
   type EngineEvent,
   type CommencementTimeRule,
   type CommencementCalendar,
+  type LaytimeEndEvent,
 } from "./commencement";
 import { resolveTurnTime, type TurnTime } from "./turn-time";
 import { CalculationRefused } from "./refuse";
@@ -91,7 +95,9 @@ export function resolveCandidateWindow(
       OPS_COMPLETED event (used before operations complete). */
   windowEndOverride?: Date,
   /** The rule set's calendar; needed when a time rule resolves a "next working day". */
-  calendar?: CommencementCalendar
+  calendar?: CommencementCalendar,
+  /** Which event ends laytime (default OPS_COMPLETED). */
+  endEvent: LaytimeEndEvent = "OPS_COMPLETED"
 ): CandidateWindow {
   const turnTime = resolveTurnTime(events, turnTimeHours, turnTimeTrigger);
 
@@ -108,7 +114,7 @@ export function resolveCandidateWindow(
   const end =
     windowEndOverride !== undefined
       ? windowEndOverride
-      : resolveRequiredEvent(events, "OPS_COMPLETED", "WINDOW_END");
+      : resolveRequiredEvent(events, endEvent, "WINDOW_END");
 
   if (start.getTime() >= end.getTime()) {
     throw new CalculationRefused(
@@ -127,6 +133,8 @@ export type CalcFromEventsInput = Omit<PortCallCalcInput, "window"> & {
   turnTimeTrigger: string | null;
   /** Time-of-day commencement rule; defaults to AT_EVENT (prior behaviour). */
   commencementTimeRule?: CommencementTimeRule;
+  /** Which event ends laytime; defaults to OPS_COMPLETED (prior behaviour). */
+  laytimeEndEvent?: LaytimeEndEvent;
 };
 
 export type CalcFromEventsResult = PortCallCalcResult & {
@@ -150,7 +158,8 @@ export function calculateFromEvents(
     input.timeZone,
     input.commencementTimeRule ?? "AT_EVENT",
     undefined,
-    { excludedWeekdays: input.excludedWeekdays, holidayDates: input.holidayDates }
+    { excludedWeekdays: input.excludedWeekdays, holidayDates: input.holidayDates },
+    input.laytimeEndEvent ?? "OPS_COMPLETED"
   );
 
   const result = calculatePortCall({

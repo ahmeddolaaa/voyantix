@@ -5,7 +5,7 @@ import {
   getProvisionalStatus,
   type ProvisionalOutcome,
 } from "@/lib/actions/provisional-status";
-import { formatInstant, formatDurationSeconds } from "@/lib/format";
+import { formatInstant, formatDurationSeconds, sheetBalanceSeconds } from "@/lib/format";
 
 /**
  * PROVISIONAL RUNNING STATUS — a live, reference-only laytime meter for a port
@@ -50,9 +50,12 @@ const ZONE_SOFT: Record<Zone, string> = {
 export function PortCallProvisionalStatus({
   portCallId,
   timeZone,
+  refreshKey,
 }: {
   portCallId: string;
   timeZone: string;
+  /** Changing this reloads the status at once (e.g. the laytime end changed). */
+  refreshKey?: string | null;
 }) {
   const [outcome, setOutcome] = useState<ProvisionalOutcome | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -85,6 +88,17 @@ export function PortCallProvisionalStatus({
       clearInterval(clock);
     };
   }, [load]);
+
+  // Reload straight away when something that moves the figures changes,
+  // instead of waiting for the next periodic refresh.
+  const firstKey = useRef(true);
+  useEffect(() => {
+    if (firstKey.current) {
+      firstKey.current = false;
+      return;
+    }
+    void load(true);
+  }, [refreshKey, load]);
 
   const border = { borderTop: "1px solid var(--line)" } as const;
   const muted = { color: "var(--steel)" } as const;
@@ -149,7 +163,7 @@ export function PortCallProvisionalStatus({
   const heroLabel = completed
     ? s.onDemurrage ? "Completed on demurrage" : "Completed within laytime"
     : s.onDemurrage ? "On demurrage" : "Time to demurrage";
-  const heroValue = formatDurationSeconds(Math.abs(s.remainingSeconds));
+  const heroValue = formatDurationSeconds(Math.abs(sheetBalanceSeconds(s.allowedSeconds, s.usedSeconds)));
   const heroSuffix = s.onDemurrage ? "over" : completed ? "saved" : "left";
 
   const warnLine = completed
@@ -273,7 +287,7 @@ export function PortCallProvisionalStatus({
         </div>
         {s.operationsCompletedAt ? (
           <div>
-            Operations completed{" "}
+            Laytime ended{" "}
             <span className="num">
               {formatInstant(new Date(s.operationsCompletedAt), timeZone)}
             </span>{" "}

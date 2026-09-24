@@ -20,13 +20,20 @@
 import { CalculationRefused } from "./refuse";
 import { getLocalParts, instantFromLocal } from "./timezone";
 
-/** The eight frozen engine event semantics (F8). No other value is engine-meaningful. */
+/**
+ * The engine event semantics (F8). No other value is engine-meaningful.
+ * F8 amended 2026-09-24 (evidence: MY FELLAS loading calculation counts to
+ * "documents on board"; Adel: loads normally end at lashing completed):
+ * LASHING_COMPLETED and DOCUMENTS_ON_BOARD were added as laytime-END events.
+ */
 export type EngineEventSemantic =
   | "NOR_TENDERED"
   | "NOR_ACCEPTED"
   | "BERTHED"
   | "OPS_COMMENCED"
   | "OPS_COMPLETED"
+  | "LASHING_COMPLETED"
+  | "DOCUMENTS_ON_BOARD"
   | "DEPARTED"
   | "WEATHER_START"
   | "WEATHER_END";
@@ -37,10 +44,25 @@ const ENGINE_EVENT_SEMANTICS: readonly EngineEventSemantic[] = [
   "BERTHED",
   "OPS_COMMENCED",
   "OPS_COMPLETED",
+  "LASHING_COMPLETED",
+  "DOCUMENTS_ON_BOARD",
   "DEPARTED",
   "WEATHER_START",
   "WEATHER_END",
 ];
+
+/** The events that may end laytime (the countable window END). Bounded. */
+export type LaytimeEndEvent = "OPS_COMPLETED" | "LASHING_COMPLETED" | "DOCUMENTS_ON_BOARD";
+
+export const LAYTIME_END_EVENT_VALUES: readonly LaytimeEndEvent[] = [
+  "OPS_COMPLETED",
+  "LASHING_COMPLETED",
+  "DOCUMENTS_ON_BOARD",
+];
+
+export function isLaytimeEndEvent(v: unknown): v is LaytimeEndEvent {
+  return (LAYTIME_END_EVENT_VALUES as readonly unknown[]).includes(v);
+}
 
 /** An operational event resolved to its engine semantic, already live-filtered. */
 export type EngineEvent = {

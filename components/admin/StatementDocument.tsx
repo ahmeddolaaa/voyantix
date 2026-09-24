@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { PrimaryButton, StatusBadge } from "@/components/ui";
 import { BrandMark } from "@/components/BrandMark";
-import { formatInstant, formatDurationSeconds, formatAmount } from "@/lib/format";
+import { formatInstant, formatDurationSeconds, formatAmount, sheetBalanceSeconds } from "@/lib/format";
 
 /**
  * Printable laytime / demurrage statement — the document a broker sends to the
@@ -153,7 +153,13 @@ export function StatementDocument({ doc }: { doc: StatementDoc }) {
                     {s.usedSeconds === null ? "—" : formatDurationSeconds(s.usedSeconds)}
                   </td>
                   <td className={`${cell} num`}>
-                    {s.balanceSeconds === null ? "—" : formatDurationSeconds(s.balanceSeconds)}
+                    {s.balanceSeconds === null
+                      ? "—"
+                      : formatDurationSeconds(
+                          s.allowedSeconds !== null && s.usedSeconds !== null
+                            ? sheetBalanceSeconds(s.allowedSeconds, s.usedSeconds)
+                            : s.balanceSeconds
+                        )}
                   </td>
                   <td
                     className={`${cell} num`}

@@ -52,8 +52,8 @@ export const ENGINE_SEMANTIC: Record<LaytimeEventType, string | null> = {
   BERTHED: "BERTHED",
   OPERATION_COMMENCED: "OPS_COMMENCED",
   OPERATION_COMPLETED: "OPS_COMPLETED",
-  LASHING_COMPLETED: null, // laytime-end candidate — config decides the boundary
-  DOCUMENTS_SIGNED: null, // laytime-end candidate
+  LASHING_COMPLETED: "LASHING_COMPLETED", // laytime end (usual for a load)
+  DOCUMENTS_SIGNED: "DOCUMENTS_ON_BOARD", // laytime end when documents are late
   DEPARTED: "DEPARTED",
 };
 

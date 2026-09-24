@@ -37,6 +37,8 @@ export const OPERATIONAL_EVENT_SEMANTICS = [
   "BERTHED",
   "OPS_COMMENCED",
   "OPS_COMPLETED",
+  "LASHING_COMPLETED",
+  "DOCUMENTS_ON_BOARD",
   "DEPARTED",
   "WEATHER_START",
   "WEATHER_END",
@@ -331,7 +333,7 @@ export const operationalEventTypes = pgTable(
       sql`(is_protected = true and system_semantic is not null) or (is_protected = false and system_semantic is null)`
     ),
     // Protected rows can never be inactive — the engine always needs all
-    // eight semantics available.
+    // engine semantics available.
     protectedActiveCheck: check(
       "operational_event_types_protected_active_check",
       sql`(is_protected = false) or (is_protected = true and status = 'active')`
@@ -342,7 +344,8 @@ export const operationalEventTypes = pgTable(
       "operational_event_types_semantic_vocabulary_check",
       sql`system_semantic is null or system_semantic in (
         'NOR_TENDERED','NOR_ACCEPTED','BERTHED','OPS_COMMENCED',
-        'OPS_COMPLETED','DEPARTED','WEATHER_START','WEATHER_END'
+        'OPS_COMPLETED','LASHING_COMPLETED','DOCUMENTS_ON_BOARD',
+        'DEPARTED','WEATHER_START','WEATHER_END'
       )`
     ),
   })

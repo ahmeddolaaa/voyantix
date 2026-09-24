@@ -34,6 +34,7 @@ import {
   createVoyagePortCall,
   updateVoyagePortCall,
   setVoyagePortCallStatus,
+  setPortCallLaytimeEnd,
 } from "../voyage-port-calls";
 
 const stamp = Date.now();
@@ -584,5 +585,41 @@ describe("cascade and authorization", () => {
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("FORBIDDEN");
+  });
+});
+
+describe("setPortCallLaytimeEnd (per-vessel laytime end)", () => {
+  async function newCall(): Promise<string> {
+    currentToken = adminToken;
+    const r = await createVoyagePortCall(voyageA, { portId: portAlex, function: "LOAD" });
+    if (!r.ok) throw new Error(r.message);
+    return r.data.id;
+  }
+
+  it("25. sets, lists and clears the override", async () => {
+    const id = await newCall();
+    const r = await setPortCallLaytimeEnd(id, "DOCUMENTS_ON_BOARD");
+    expect(r.ok && r.data.laytimeEndOverride).toBe("DOCUMENTS_ON_BOARD");
+    const list = await listVoyagePortCalls(voyageA);
+    expect(list.ok && list.data.find((c) => c.id === id)?.laytimeEndOverride).toBe("DOCUMENTS_ON_BOARD");
+    const cleared = await setPortCallLaytimeEnd(id, null);
+    expect(cleared.ok && cleared.data.laytimeEndOverride).toBeNull();
+  });
+
+  it("26. rejects an unknown end event", async () => {
+    const id = await newCall();
+    const r = await setPortCallLaytimeEnd(id, "SAILED");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("27. a viewer cannot change it; another org gets NOT_FOUND", async () => {
+    const id = await newCall();
+    currentToken = viewerToken;
+    const v = await setPortCallLaytimeEnd(id, "LASHING_COMPLETED");
+    expect(!v.ok && v.code).toBe("FORBIDDEN");
+    currentToken = orgBToken;
+    const x = await setPortCallLaytimeEnd(id, "LASHING_COMPLETED");
+    expect(!x.ok && x.code).toBe("NOT_FOUND");
   });
 });

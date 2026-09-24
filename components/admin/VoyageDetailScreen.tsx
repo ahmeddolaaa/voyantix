@@ -64,6 +64,8 @@ type TermOption = {
   label: string;
   portId: string | null;
   cargoId: string | null;
+  /** The term's default laytime-end event. */
+  laytimeEndEvent: string;
 };
 
 const STATUS_LABEL: Record<PortCallStatus, string> = {
@@ -255,6 +257,7 @@ export function VoyageDetailScreen({
           status: "ACTIVE",
           effectiveTimezone: r.data.effectiveTimezone,
           contractLaytimeTermId: null,
+          laytimeEndOverride: null,
         },
       ]);
       setPlans((prev) => ({ ...prev, [r.data.id]: [] }));
@@ -926,12 +929,22 @@ export function VoyageDetailScreen({
                 <PortCallProvisionalStatus
                   portCallId={c.id}
                   timeZone={c.effectiveTimezone}
+                  refreshKey={c.laytimeEndOverride}
                 />
               )}
 
               <PortCallCalculation
                 portCallId={c.id}
                 timeZone={c.effectiveTimezone}
+                termLaytimeEnd={
+                  c.contractLaytimeTermId
+                    ? termOptions.find((t) => t.id === c.contractLaytimeTermId)?.laytimeEndEvent ?? null
+                    : null
+                }
+                laytimeEndOverride={c.laytimeEndOverride}
+                onLaytimeEndChanged={(v) =>
+                  setCalls((prev) => prev.map((p) => (p.id === c.id ? { ...p, laytimeEndOverride: v } : p)))
+                }
               />
 
               <PortCallShifts
