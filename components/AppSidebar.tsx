@@ -12,7 +12,13 @@ import { BrandMark } from "@/components/BrandMark";
  * Active state is longest-prefix: /admin/contracts/42 lights "Contracts",
  * not "Administration", because "/admin/contracts" is the more specific href.
  */
-export type SidebarItem = { href: string; label: string; icon: IconName };
+export type SidebarItem = {
+  href: string;
+  label: string;
+  icon: IconName;
+  /** Other path prefixes that belong to this item (e.g. SOF import → Voyages). */
+  also?: string[];
+};
 
 type IconName = "dash" | "ship" | "file" | "chart" | "rules" | "db";
 
@@ -91,9 +97,10 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const all = [...main, ...setup];
+  const under = (p: string) => pathname === p || pathname.startsWith(p + "/");
   const matches = all
-    .filter((i) => pathname === i.href || pathname.startsWith(i.href + "/"))
-    .sort((a, b) => b.href.length - a.href.length);
+    .flatMap((i) => [i.href, ...(i.also ?? [])].filter(under).map((p) => ({ href: i.href, len: p.length })))
+    .sort((a, b) => b.len - a.len);
   const activeHref = matches[0]?.href;
 
   const renderItem = (i: SidebarItem) => {

@@ -168,3 +168,17 @@ a {
     print-color-adjust: exact !important;
   }
 }
+
+/* Loading placeholder shimmer (document reading, skeletons). */
+@keyframes vx-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.vx-shimmer {
+  background: linear-gradient(90deg, var(--line-soft) 0%, #fff 50%, var(--line-soft) 100%);
+  background-size: 800px 100%;
+  animation: vx-shimmer 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vx-shimmer { animation: none; }
+}

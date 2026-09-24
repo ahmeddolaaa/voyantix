@@ -17,7 +17,7 @@ export default async function AppLayout({
 
   const main: SidebarItem[] = [
     { href: "/portfolio", label: "Dashboard", icon: "dash" },
-    { href: "/admin/voyages", label: "Voyages", icon: "ship" },
+    { href: "/admin/voyages", label: "Voyages", icon: "ship", also: ["/admin/ingest-preview"] },
   ];
   if (hasPermission(ctx, "contract.read")) {
     main.push({ href: "/admin/contracts", label: "Contracts", icon: "file" });

@@ -17,7 +17,6 @@ import {
 } from "@/lib/actions/commit-extraction";
 import {
   Card,
-  PageTitle,
   SectionHeading,
   StatusBadge,
   PrimaryButton,
@@ -264,17 +263,29 @@ export function ExtractionReview({
     ]);
 
   return (
-    <div className="max-w-7xl mx-auto px-6 lg:px-10 py-8">
-      <div className="flex items-start justify-between mb-1">
-        <PageTitle>Review extraction</PageTitle>
+    <div>
+      <div
+        className="flex items-center gap-3 flex-wrap rounded-[14px] px-5 py-4 mb-6"
+        style={{ background: "var(--card)", border: "1px solid var(--line)" }}
+      >
         <StatusBadge tone="neutral">{doc.kind}</StatusBadge>
+        <span className="text-[13.5px]" style={{ color: "var(--ink)" }}>
+          {[
+            doc.vesselName,
+            doc.port,
+            doc.terminal,
+            doc.operation === "LOAD" ? "Loading" : doc.operation === "DISCHARGE" ? "Discharging" : null,
+            doc.cargoDescription,
+            doc.cargoQuantityMt != null ? `Cargo ${doc.cargoQuantityMt.toLocaleString("en-GB")} MT` : null,
+            doc.charterPartyDate ? `C/P ${localToDisplay(`${doc.charterPartyDate}T00:00`).slice(0, 10)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "Document details not read"}
+        </span>
+        <span className="ml-auto text-[12px]" style={muted}>
+          Check every row against the document before committing.
+        </span>
       </div>
-      <p className="text-[13px] mb-6" style={muted}>
-        {doc.vesselName} · {doc.port}
-        {doc.terminal ? ` · ${doc.terminal}` : ""} ·{" "}
-        {doc.operation === "LOAD" ? "Loading" : "Discharging"} · Cargo{" "}
-        {doc.cargoQuantityMt?.toLocaleString()} MT · C/P {doc.charterPartyDate ? localToDisplay(`${doc.charterPartyDate}T00:00`).slice(0, 10) : "—"}
-      </p>
 
       <div className="lg:flex lg:gap-7">
         {/* Main: the candidate facts, each fully editable against its source. */}

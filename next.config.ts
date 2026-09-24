@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       allowedOrigins: ["*.app.github.dev", "*.cloudshell.dev", "localhost:3000"],
+      // SOF upload: a scanned statement of facts can be several MB (15 MB cap
+      // in the action + multipart overhead).
+      bodySizeLimit: "16mb",
     },
   },
 };
