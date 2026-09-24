@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
+import { localToDisplay, displayToLocal } from "@/lib/ingestion/local-time-text";
 import type {
   SofExtraction,
   ExtractedEvent,
@@ -283,7 +284,7 @@ export function ExtractionReview({
         {doc.vesselName} · {doc.port}
         {doc.terminal ? ` · ${doc.terminal}` : ""} ·{" "}
         {doc.operation === "LOAD" ? "Loading" : "Discharging"} · Cargo{" "}
-        {doc.cargoQuantityMt?.toLocaleString()} MT · C/P {doc.charterPartyDate}
+        {doc.cargoQuantityMt?.toLocaleString()} MT · C/P {doc.charterPartyDate ? localToDisplay(`${doc.charterPartyDate}T00:00`).slice(0, 10) : "—"}
       </p>
 
       <div className="lg:flex lg:gap-7">
@@ -328,12 +329,11 @@ export function ExtractionReview({
                         </option>
                       ))}
                     </select>
-                    <input
+                    <LocalTimeInput
                       value={e.occurredLocal}
-                      onChange={(ev) => patchEvent(i, { occurredLocal: ev.target.value })}
-                      placeholder="YYYY-MM-DDThh:mm"
-                      className="num"
-                      style={{ ...inputStyle, width: "165px" }}
+                      onChange={(v) => patchEvent(i, { occurredLocal: v ?? "" })}
+                      label={`${EVENT_LABEL[e.type]} time`}
+                      style={{ ...inputStyle, width: "150px" }}
                     />
                     {e.origin === "manual" ? <ManualTag /> : <Confidence value={e.confidence} />}
                   </div>
@@ -389,20 +389,19 @@ export function ExtractionReview({
                         </option>
                       ))}
                     </select>
-                    <input
+                    <LocalTimeInput
                       value={s.startLocal}
-                      onChange={(ev) => patchStoppage(i, { startLocal: ev.target.value })}
-                      placeholder="from"
-                      className="num"
-                      style={{ ...inputStyle, width: "150px" }}
+                      onChange={(v) => patchStoppage(i, { startLocal: v ?? "" })}
+                      label="Stoppage from"
+                      style={{ ...inputStyle, width: "140px" }}
                     />
                     <span style={muted}>→</span>
-                    <input
+                    <LocalTimeInput
                       value={s.endLocal ?? ""}
-                      onChange={(ev) => patchStoppage(i, { endLocal: ev.target.value || null })}
-                      placeholder="to"
-                      className="num"
-                      style={{ ...inputStyle, width: "150px" }}
+                      onChange={(v) => patchStoppage(i, { endLocal: v })}
+                      label="Stoppage to"
+                      allowEmpty
+                      style={{ ...inputStyle, width: "140px" }}
                     />
                     {s.origin === "manual" ? <ManualTag /> : <Confidence value={s.confidence} />}
                   </div>
@@ -525,5 +524,65 @@ export function ExtractionReview({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A SOF local time shown as "dd/mm/yyyy hh:mm". The typed text is kept while
+ * editing; the stored value changes only when the text is a real date/time.
+ * Unreadable text is flagged red and stored as empty, so Commit reports it as
+ * unreadable instead of silently keeping an old value.
+ */
+function LocalTimeInput({
+  value,
+  onChange,
+  label,
+  allowEmpty = false,
+  style,
+}: {
+  value: string;
+  onChange: (local: string | null) => void;
+  label: string;
+  allowEmpty?: boolean;
+  style: React.CSSProperties;
+}) {
+  const [text, setText] = useState(() => localToDisplay(value));
+  const [invalid, setInvalid] = useState(false);
+  const [lastValue, setLastValue] = useState(value);
+  // Follow outside changes (e.g. a new row) without clobbering typing.
+  if (value !== lastValue) {
+    setLastValue(value);
+    setText(localToDisplay(value));
+    setInvalid(false);
+  }
+  return (
+    <input
+      aria-label={label}
+      value={text}
+      placeholder="dd/mm/yyyy hh:mm"
+      onChange={(ev) => {
+        const t = ev.target.value;
+        setText(t);
+        // Record what we emit so the resulting prop change is not mistaken
+        // for an outside change (which would wipe the text being typed).
+        if (t.trim() === "") {
+          setInvalid(!allowEmpty);
+          const out = allowEmpty ? null : "";
+          setLastValue(out ?? "");
+          onChange(out);
+          return;
+        }
+        const parsed = displayToLocal(t);
+        setInvalid(parsed === null);
+        setLastValue(parsed ?? "");
+        onChange(parsed ?? "");
+      }}
+      className="num"
+      style={{
+        ...style,
+        ...(invalid ? { borderColor: "var(--danger)", outlineColor: "var(--danger)" } : {}),
+      }}
+      title={invalid ? "Use dd/mm/yyyy hh:mm, e.g. 23/06/2026 00:01" : undefined}
+    />
   );
 }
