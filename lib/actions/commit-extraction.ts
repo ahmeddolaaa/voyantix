@@ -1,10 +1,12 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   operationalEventTypes,
+  operationalEvents,
   stoppageReasons,
+  stoppages as stoppagesTable,
   voyagePortCalls,
 } from "@/db/schema";
 import { authorized } from "@/lib/auth/authorized";
@@ -121,6 +123,38 @@ export async function commitExtraction(
         .from(stoppageReasons)
         .where(eq(stoppageReasons.organizationId, ctx.organizationId));
 
+      // Events already live on this port call. Committing a SOF again (e.g.
+      // after new event types became recordable) must only ADD what is
+      // missing: a second live event of the same type would make the
+      // calculation refuse as ambiguous, so an existing one is kept.
+      const live = await db
+        .select({ typeId: operationalEvents.eventTypeId, at: operationalEvents.occurredAt })
+        .from(operationalEvents)
+        .where(
+          and(
+            eq(operationalEvents.portCallId, portCallId),
+            eq(operationalEvents.organizationId, ctx.organizationId),
+            isNull(operationalEvents.supersededByEventId)
+          )
+        );
+      const liveByType = new Map<string, Date>();
+      for (const l of live) liveByType.set(l.typeId, l.at);
+
+      const liveStoppages = await db
+        .select({ reasonId: stoppagesTable.reasonId, start: stoppagesTable.startTime, end: stoppagesTable.endTime })
+        .from(stoppagesTable)
+        .where(
+          and(
+            eq(stoppagesTable.portCallId, portCallId),
+            eq(stoppagesTable.organizationId, ctx.organizationId)
+          )
+        );
+      const stoppageKey = (reasonId: string, start: string, end: string | null) =>
+        `${reasonId}|${new Date(start).toISOString()}|${end ? new Date(end).toISOString() : ""}`;
+      const existingStoppages = new Set(
+        liveStoppages.map((x) => stoppageKey(x.reasonId, x.start.toISOString(), x.end ? x.end.toISOString() : null))
+      );
+
       const skipped: string[] = [];
       let committedEvents = 0;
       let committedStoppages = 0;
@@ -141,12 +175,24 @@ export async function commitExtraction(
           skipped.push(`Event "${e.type}" has an unreadable time.`);
           continue;
         }
+        const existing = liveByType.get(eventTypeId);
+        if (existing) {
+          if (existing.toISOString() !== occurredAt) {
+            skipped.push(
+              `Event "${e.type}" is already recorded at a different time — kept the recorded one (use Correct to change it).`
+            );
+          }
+          // Same time: already recorded, nothing to do.
+          continue;
+        }
         const r = await recordOperationalEvent(portCallId, {
           eventTypeId,
           occurredAt,
         });
-        if (r.ok) committedEvents++;
-        else skipped.push(`Event "${e.type}": ${r.message}`);
+        if (r.ok) {
+          committedEvents++;
+          liveByType.set(eventTypeId, new Date(occurredAt));
+        } else skipped.push(`Event "${e.type}": ${r.message}`);
       }
 
       for (const s of payload.stoppages) {
@@ -161,6 +207,8 @@ export async function commitExtraction(
           continue;
         }
         const endTime = s.endLocal ? toIso(s.endLocal, tz) : null;
+        // Identical stoppage already recorded (a repeat commit): nothing to add.
+        if (existingStoppages.has(stoppageKey(reasonId, startTime, endTime))) continue;
         const r = await createStoppage(portCallId, {
           reasonId,
           startTime,
