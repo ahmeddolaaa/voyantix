@@ -4,6 +4,8 @@ import Link from "next/link";
 import { PrimaryButton, StatusBadge } from "@/components/ui";
 import { BrandMark } from "@/components/BrandMark";
 import { formatInstant, formatDurationSeconds, formatAmount, sheetBalanceSeconds } from "@/lib/format";
+import type { PortCallSheet } from "@/lib/actions/port-call-sheet";
+import { PortCallSheetView } from "@/components/admin/PortCallSheetView";
 
 /**
  * Printable laytime / demurrage statement — the document a broker sends to the
@@ -27,6 +29,9 @@ export type DocScope = {
   note: string | null;
 };
 
+/** One port call's detailed laytime sheet (or why it is not shown). */
+export type DocSheet = { title: string; sheet: PortCallSheet | null; note: string | null };
+
 export type StatementDoc = {
   voyageId: string;
   voyageReference: string;
@@ -41,6 +46,7 @@ export type StatementDoc = {
   netClaim: number;
   adjustments: { amount: number; reason: string }[];
   scopes: DocScope[];
+  sheets: DocSheet[];
 };
 
 function settlementText(s: DocScope): string {
@@ -223,6 +229,17 @@ export function StatementDocument({ doc }: { doc: StatementDoc }) {
             </div>
           </div>
         </div>
+
+        {/* Detailed laytime calculation per port call */}
+        {doc.sheets.map((d, i) =>
+          d.sheet ? (
+            <PortCallSheetView key={i} sheet={d.sheet} title={d.title} />
+          ) : (
+            <div key={i} className="mt-6 text-[12px]" style={muted}>
+              {d.title}: {d.note}
+            </div>
+          )
+        )}
 
         {/* Footer */}
         <div className="text-[11px] mt-6 pt-3" style={{ ...muted, borderTop: "1px solid var(--line)" }}>

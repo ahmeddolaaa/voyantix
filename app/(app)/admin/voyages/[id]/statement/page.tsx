@@ -5,10 +5,12 @@ import { listVoyagePortCalls } from "@/lib/actions/voyage-port-calls";
 import { listPorts } from "@/lib/actions/ports";
 import { getStatement } from "@/lib/actions/laytime-statements";
 import { getPortCallCalculation } from "@/lib/actions/laytime-calculations";
+import { getPortCallSheet } from "@/lib/actions/port-call-sheet";
 import {
   StatementDocument,
   type StatementDoc,
   type DocScope,
+  type DocSheet,
 } from "@/components/admin/StatementDocument";
 import { EmptyState } from "@/components/ui";
 import Link from "next/link";
@@ -65,6 +67,7 @@ export default async function StatementPage({
   );
 
   const scopes: DocScope[] = [];
+  const sheets: DocSheet[] = [];
   for (const s of statement.data.scopes) {
     const call = s.portCallId ? callById.get(s.portCallId) : undefined;
     const label = call ? `${call.sequence} · ${portName(call.portId)}` : "Pool";
@@ -81,6 +84,21 @@ export default async function StatementPage({
         usedSeconds = calc.data.usedSeconds;
         windowStart = calc.data.window?.start ?? null;
         windowEnd = calc.data.window?.end ?? null;
+      }
+    }
+
+    // The detailed sheet, only when it is the very calculation this statement
+    // line was built from — never a later recalculation under an older figure.
+    if (s.portCallId && (s.settlementKind === "demurrage" || s.settlementKind === "despatch" || s.settlementKind === "none")) {
+      const sheet = await getPortCallSheet(s.portCallId);
+      if (sheet.ok && sheet.data && sheet.data.calculationId === s.calculationId) {
+        sheets.push({ title: label, sheet: sheet.data, note: null });
+      } else {
+        sheets.push({
+          title: label,
+          sheet: null,
+          note: "The detailed time-sheet is not shown: this port call was recalculated after the statement was built. Rebuild the draft to include it.",
+        });
       }
     }
 
@@ -113,6 +131,7 @@ export default async function StatementPage({
     netClaim: statement.data.netClaim,
     adjustments: statement.data.adjustments.map((a) => ({ amount: a.amount, reason: a.reason })),
     scopes,
+    sheets,
   };
 
   return <StatementDocument doc={doc} />;

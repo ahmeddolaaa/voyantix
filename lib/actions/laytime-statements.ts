@@ -395,6 +395,8 @@ export async function finalizeStatement(
 
 export type StatementScope = {
   portCallId: string | null;
+  /** The calculation this line was built from (null if since replaced/deleted). */
+  calculationId: string | null;
   scopeType: "port_call" | "pool";
   balanceOutcome: "SAVED" | "EXCEEDED" | "EXACT" | null;
   balanceSeconds: number | null;
@@ -476,6 +478,7 @@ export async function getStatement(
         const scopeRows = await db
           .select({
             portCallId: statementScopeResults.portCallId,
+            calculationId: statementScopeResults.calculationId,
             scopeType: statementScopeResults.scopeType,
             balanceOutcome: statementScopeResults.balanceOutcome,
             balanceSeconds: statementScopeResults.balanceSeconds,
@@ -503,6 +506,7 @@ export async function getStatement(
           }
           return {
             portCallId: r.portCallId,
+            calculationId: r.calculationId,
             scopeType: r.scopeType,
             balanceOutcome: r.balanceOutcome,
             balanceSeconds: r.balanceSeconds === null ? null : Number(r.balanceSeconds),
