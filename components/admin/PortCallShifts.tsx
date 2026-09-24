@@ -53,6 +53,7 @@ export function PortCallShifts({
   initialShifts,
   cargoes,
   facilities,
+  onChanged,
 }: {
   portCallId: string;
   /** LOAD or DISCHARGE, taken from the port call. */
@@ -61,6 +62,8 @@ export function PortCallShifts({
   /** Only the cargoes actually planned for THIS port call. */
   cargoes: CargoOption[];
   facilities: FacilityOption[];
+  /** Called after a shift is added, changed or removed (progress views reload). */
+  onChanged?: () => void;
 }) {
   const [rows, setRows] = useState(initialShifts);
   const [formOpen, setFormOpen] = useState(false);
@@ -137,6 +140,7 @@ export function PortCallShifts({
       setRows((prev) =>
         editing ? prev.map((x) => (x.id === saved.id ? saved : x)) : [...prev, saved]
       );
+      onChanged?.();
       closeForm();
     });
   }
@@ -149,6 +153,7 @@ export function PortCallShifts({
         return;
       }
       setRows((prev) => prev.filter((x) => x.id !== id));
+      onChanged?.();
     });
   }
 

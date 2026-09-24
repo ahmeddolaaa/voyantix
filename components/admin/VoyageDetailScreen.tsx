@@ -23,6 +23,7 @@ import { PortCallEvents } from "@/components/admin/PortCallEvents";
 import { PortCallStoppages } from "@/components/admin/PortCallStoppages";
 import { PortCallShifts } from "@/components/admin/PortCallShifts";
 import { PortCallLaytimeVisual } from "@/components/admin/PortCallLaytimeVisual";
+import { PortCallLoadingOverview } from "@/components/admin/PortCallLoadingOverview";
 import { PortCallCalculation } from "@/components/admin/PortCallCalculation";
 import { PortCallProvisionalStatus } from "@/components/admin/PortCallProvisionalStatus";
 import { VoyageStatement } from "@/components/admin/VoyageStatement";
@@ -153,6 +154,8 @@ export function VoyageDetailScreen({
   // Which section each port call shows. All sections stay mounted (hidden,
   // not unmounted) so a half-filled form survives switching tabs.
   const [tabByCall, setTabByCall] = useState<Record<string, PortCallTab>>({});
+  // Bumped when a port call's shift log changes, so its progress reloads.
+  const [shiftVersion, setShiftVersion] = useState<Record<string, number>>({});
   const [plans, setPlans] = useState(initialPlansByPortCall);
   const [pending, startTransition] = useTransition();
 
@@ -761,8 +764,15 @@ export function VoyageDetailScreen({
                       id={panelId("cargo")}
                       aria-labelledby={tabId("cargo")}
                       hidden={active !== "cargo"}
-                      className="pt-4 grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-6 items-start"
+                      className="pt-4"
                     >
+                      <PortCallLoadingOverview
+                        portCallId={c.id}
+                        refreshKey={`${shiftVersion[c.id] ?? 0}:${calcVersion}:${callPlans
+                          .map((p) => `${p.cargoId}=${p.plannedQuantityMt}/${p.actualQuantityMt ?? ""}`)
+                          .join(",")}`}
+                      />
+                      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-6 items-start">
                       <div className="min-w-0 [&>*:first-child]:!mt-0 [&>*:first-child]:!pt-0 [&>*:first-child]:!border-t-0">
               <div
                 className="pt-1"
@@ -926,7 +936,9 @@ export function VoyageDetailScreen({
                   status: "active" as const,
                 }))}
                 facilities={facilitiesForPort(c.portId)}
+                onChanged={() => setShiftVersion((m) => ({ ...m, [c.id]: (m[c.id] ?? 0) + 1 }))}
               />
+                      </div>
                       </div>
                     </div>
 
