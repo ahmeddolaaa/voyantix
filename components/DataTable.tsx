@@ -89,14 +89,14 @@ export function DataTable<T>(props: DataTableProps<T>) {
 
   return (
     <div
-      className="overflow-x-auto rounded-lg"
-      style={{ border: "1px solid var(--line)", background: "var(--card)" }}
+      className="overflow-x-auto rounded-[14px]"
+      style={{ border: "1px solid var(--line)", background: "var(--card)", boxShadow: "var(--shadow-card)" }}
     >
       <table className="w-full border-collapse text-[13px]">
         <caption className="sr-only">{caption}</caption>
 
         <thead>
-          <tr style={{ borderBottom: "1px solid var(--line)" }}>
+          <tr style={{ borderBottom: "1px solid var(--line)", background: "var(--bg-subtle)" }}>
             {columns.map((c) => {
               const alignClass = c.align === "end" ? "text-right" : "text-left";
               const responsive = c.hideBelow ? hideClass[c.hideBelow] : "";
@@ -105,7 +105,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
                   key={c.key}
                   scope="col"
                   aria-sort={c.sortable ? ariaSort(c.key, sort) : undefined}
-                  className={`px-4 py-2.5 font-medium text-[11.5px] ${alignClass} ${responsive}`}
+                  className={`px-4 py-3 font-semibold text-[11px] uppercase tracking-[.08em] ${alignClass} ${responsive}`}
                   style={{ color: "var(--steel)", width: c.width }}
                 >
                   {c.sortable && onSortChange ? (
@@ -117,7 +117,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
                           direction: nextDirection(c.key, sort),
                         })
                       }
-                      className="inline-flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brass)] rounded-sm"
+                      className="inline-flex items-center gap-1 uppercase tracking-[.08em] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brass)] rounded-sm"
                       style={{ color: "inherit" }}
                     >
                       {c.header}
@@ -156,6 +156,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
             : rows.map((row) => (
                 <tr
                   key={getRowId(row)}
+                  className="transition-colors hover:bg-[var(--bg-subtle)]"
                   style={{ borderTop: "1px solid var(--line-soft)" }}
                 >
                   {columns.map((c) => {
@@ -165,7 +166,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
                     return (
                       <td
                         key={c.key}
-                        className={`px-4 py-3 ${alignClass} ${responsive}`}
+                        className={`px-4 py-3.5 text-[13.5px] ${alignClass} ${responsive}`}
                         style={{ color: "var(--ink)" }}
                       >
                         {c.render(row)}

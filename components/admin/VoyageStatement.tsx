@@ -137,7 +137,7 @@ export function VoyageStatement({
             <Link
               href={`/admin/voyages/${voyageId}/statement`}
               className="text-[12px] no-underline"
-              style={{ color: "var(--brass)" }}
+              style={{ color: "var(--teal)" }}
             >
               View as document →
             </Link>

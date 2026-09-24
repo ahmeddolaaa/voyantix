@@ -650,7 +650,7 @@ export function VoyageDetailScreen({
                     className="px-2.5 py-1 text-[12px] rounded no-underline inline-flex items-center"
                     style={{
                       background: "var(--gold-soft)",
-                      color: "var(--brass)",
+                      color: "#8a5a12",
                       border: "1px solid var(--gold)",
                     }}
                   >

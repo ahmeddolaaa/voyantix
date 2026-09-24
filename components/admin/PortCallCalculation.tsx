@@ -288,7 +288,7 @@ export function PortCallCalculation({
                 type="button"
                 onClick={() => setShowSheet((v) => !v)}
                 className="text-[12px] underline"
-                style={{ color: "var(--brass)" }}
+                style={{ color: "var(--teal)" }}
               >
                 {showSheet ? "Hide" : "Show"} time-sheet ({calc.intervals.length} intervals)
               </button>

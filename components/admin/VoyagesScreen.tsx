@@ -229,7 +229,7 @@ export function VoyagesScreen({
         <Link
           href={`/admin/voyages/${r.id}`}
           className="hover:underline"
-          style={{ fontWeight: 500, color: "var(--brass)" }}
+          style={{ fontWeight: 500, color: "var(--teal)" }}
         >
           {r.voyageReference}
         </Link>

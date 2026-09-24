@@ -49,7 +49,7 @@ export default async function StatementPage({
   if (!statement.data) {
     return (
       <div className="max-w-4xl mx-auto px-8 py-8">
-        <Link href={`/admin/voyages/${id}`} className="text-[13px] no-underline" style={{ color: "var(--brass)" }}>
+        <Link href={`/admin/voyages/${id}`} className="text-[13px] no-underline" style={{ color: "var(--teal)" }}>
           ← Back to voyage
         </Link>
         <div className="mt-4">

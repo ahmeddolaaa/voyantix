@@ -119,7 +119,7 @@ function ManualTag() {
   return (
     <span
       className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium shrink-0"
-      style={{ background: "var(--brass-soft)", color: "var(--brass)" }}
+      style={{ background: "var(--brass-soft)", color: "#8a5a12" }}
     >
       Manual
     </span>
@@ -490,7 +490,7 @@ export function ExtractionReview({
                   <Link
                     href={`/admin/voyages/${voyageId}`}
                     className="text-[13px] no-underline"
-                    style={{ color: "var(--brass)" }}
+                    style={{ color: "var(--teal)" }}
                   >
                     → Back to voyage
                   </Link>

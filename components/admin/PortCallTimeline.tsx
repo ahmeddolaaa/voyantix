@@ -99,7 +99,7 @@ export function PortCallTimeline({
             type="button"
             onClick={() => setOpen((v) => !v)}
             className="text-[12px] underline"
-            style={{ color: "var(--brass)" }}
+            style={{ color: "var(--teal)" }}
           >
             {open ? "Hide" : "Show"} timeline ({marks.length})
           </button>

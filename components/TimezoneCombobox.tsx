@@ -151,7 +151,7 @@ export function TimezoneCombobox({
             }}
             disabled={disabled}
             className="text-[12px] underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brass)] rounded-sm"
-            style={{ color: "var(--brass)" }}
+            style={{ color: "var(--teal)" }}
           >
             Change
           </button>

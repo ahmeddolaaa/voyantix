@@ -132,7 +132,7 @@ export function RuleSetsScreen({
         <Link
           href={`/admin/rule-sets/${r.id}`}
           className="hover:underline"
-          style={{ fontWeight: 500, color: "var(--brass)" }}
+          style={{ fontWeight: 500, color: "var(--teal)" }}
         >
           {r.name}
         </Link>
