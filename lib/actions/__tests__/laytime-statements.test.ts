@@ -226,6 +226,33 @@ describe("finalizeStatement — canonical lifecycle", () => {
     if (!again.ok) expect(again.code).toBe("CONFLICT");
   });
 
+  it("flags a draft as outdated after a recalculation, and refuses to finalize it until rebuilt", async () => {
+    currentToken = adminToken;
+    const [v] = await db.insert(voyages).values({ organizationId: orgA, voyageReference: `VO-${stamp}`, vesselName: "MV Old" }).returning({ id: voyages.id });
+    const pc = await makePortCall(v.id, termNormal);
+    await addEvent(pc, typeNor, "2026-06-12T05:00:00Z");
+    await addEvent(pc, typeOps, "2026-06-15T05:00:00Z");
+    await recalculatePortCall(pc);
+    await buildStatementDraft(v.id);
+
+    const fresh = await getStatement(v.id);
+    expect(fresh.ok && fresh.data?.outdated).toBe(false);
+
+    await recalculatePortCall(pc); // e.g. laytime end changed
+    const stale = await getStatement(v.id);
+    expect(stale.ok && stale.data?.outdated).toBe(true);
+
+    const blocked = await finalizeStatement(v.id);
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) expect(blocked.code).toBe("INVALID_STATE");
+
+    await buildStatementDraft(v.id);
+    const rebuilt = await getStatement(v.id);
+    expect(rebuilt.ok && rebuilt.data?.outdated).toBe(false);
+    const fin = await finalizeStatement(v.id);
+    expect(fin.ok).toBe(true);
+  });
+
   it("refuses to finalize when there is no draft", async () => {
     currentToken = adminToken;
     const [v] = await db.insert(voyages).values({ organizationId: orgA, voyageReference: `VD-${stamp}`, vesselName: "MV NoDraft" }).returning({ id: voyages.id });

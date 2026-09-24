@@ -138,6 +138,7 @@ export function VoyageDetailScreen({
   termOptions: TermOption[];
 }) {
   const [calls, setCalls] = useState(initialPortCalls);
+  const [calcVersion, setCalcVersion] = useState(0);
   const [plans, setPlans] = useState(initialPlansByPortCall);
   const [pending, startTransition] = useTransition();
 
@@ -429,6 +430,7 @@ export function VoyageDetailScreen({
       </div>
 
       <VoyageStatement
+        refreshKey={calcVersion}
         voyageId={voyageId}
         timeZone={calls[0]?.effectiveTimezone ?? "UTC"}
         portCallLabels={Object.fromEntries(
@@ -945,6 +947,7 @@ export function VoyageDetailScreen({
                 onLaytimeEndChanged={(v) =>
                   setCalls((prev) => prev.map((p) => (p.id === c.id ? { ...p, laytimeEndOverride: v } : p)))
                 }
+                onRecalculated={() => setCalcVersion((n) => n + 1)}
               />
 
               <PortCallShifts

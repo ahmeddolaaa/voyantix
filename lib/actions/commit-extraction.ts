@@ -1,6 +1,7 @@
 "use server";
 
 import { and, eq, isNull } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import {
   operationalEventTypes,
@@ -97,6 +98,7 @@ export async function commitExtraction(
       const [pc] = await db
         .select({
           tz: voyagePortCalls.effectiveTimezone,
+          voyageId: voyagePortCalls.voyageId,
         })
         .from(voyagePortCalls)
         .where(
@@ -217,6 +219,14 @@ export async function commitExtraction(
         });
         if (r.ok) committedStoppages++;
         else skipped.push(`Stoppage "${s.reasonText}": ${r.message}`);
+      }
+
+      // The voyage page (also when reached with the browser's Back button)
+      // must show the newly recorded events, not a cached copy.
+      try {
+        revalidatePath(`/admin/voyages/${pc.voyageId}`);
+      } catch {
+        // Outside a Next.js request (tests, scripts) there is no cache to purge.
       }
 
       return ok<CommitSummary>({

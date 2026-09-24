@@ -100,6 +100,7 @@ export function PortCallCalculation({
   termLaytimeEnd = null,
   laytimeEndOverride = null,
   onLaytimeEndChanged,
+  onRecalculated,
 }: {
   portCallId: string;
   timeZone: string;
@@ -108,6 +109,8 @@ export function PortCallCalculation({
   /** This port call's override (null = follow the term). */
   laytimeEndOverride?: string | null;
   onLaytimeEndChanged?: (value: string | null) => void;
+  /** Called after every successful recalculation (the statement may be stale). */
+  onRecalculated?: () => void;
 }) {
   const [calc, setCalc] = useState<PersistedCalculation | null>(null);
   const [settlement, setSettlement] = useState<SettlementView | null>(null);
@@ -146,6 +149,7 @@ export function PortCallCalculation({
         return;
       }
       await load();
+      onRecalculated?.();
     });
   }
 
@@ -166,6 +170,7 @@ export function PortCallCalculation({
         return;
       }
       await load();
+      onRecalculated?.();
     });
   }
 
