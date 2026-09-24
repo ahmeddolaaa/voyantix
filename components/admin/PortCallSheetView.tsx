@@ -119,7 +119,14 @@ export function PortCallSheetView({ sheet, title }: { sheet: PortCallSheet; titl
 
       {/* Terms */}
       <div className="grid grid-cols-[200px_1fr] gap-y-1 text-[12.5px] mb-4">
-        <span style={muted}>Laytime allowance</span><span>{sheet.terms.allowance} · {sheet.terms.ruleSet}</span>
+        {sheet.terms.clauseText && (
+          <>
+            <span style={muted}>{sheet.operation === "LOAD" ? "Loading rate" : "Discharging rate"}</span>
+            <span style={{ fontWeight: 600 }}>{sheet.terms.clauseText}</span>
+          </>
+        )}
+        <span style={muted}>{sheet.terms.clauseText ? "Calculated as" : "Laytime allowance"}</span>
+        <span>{sheet.terms.allowance} · {sheet.terms.ruleSet}</span>
         <span style={muted}>Commencement</span><span>{sheet.terms.commencement}</span>
         <span style={muted}>Laytime ends at</span><span>{sheet.terms.laytimeEnds}</span>
         {sheet.terms.onceOnDemurrage && (<><span style={muted}>Demurrage clause</span><span>Once on demurrage, always on demurrage</span></>)}

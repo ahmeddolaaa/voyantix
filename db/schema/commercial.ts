@@ -290,6 +290,10 @@ export const contractLaytimeTerms = pgTable(
     // term: OPS_COMPLETED | LASHING_COMPLETED | DOCUMENTS_ON_BOARD. A port
     // call may override it (voyage_port_calls.laytime_end_override).
     laytimeEndEvent: text("laytime_end_event").notNull().default("OPS_COMPLETED"),
+    // The laytime clause as written in the charter party, e.g. "3000 MT PWWD
+    // FSHEX EIU". DISPLAY ONLY (printed on the statement); the engine never
+    // reads it — the structured fields above are the calculation's inputs.
+    laytimeClauseText: text("laytime_clause_text"),
 
     // references
     ruleSetVersionId: uuid("rule_set_version_id").notNull(),

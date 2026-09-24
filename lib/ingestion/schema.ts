@@ -57,6 +57,13 @@ export const ENGINE_SEMANTIC: Record<LaytimeEventType, string | null> = {
   DEPARTED: "DEPARTED",
 };
 
+/** Events recorded for the record only (no engine semantic, F8): the event
+ *  type is created as an ordinary custom type the first time it is needed. */
+export const INFO_EVENT_TYPE: Partial<Record<LaytimeEventType, { code: string; label: string }>> = {
+  ARRIVED: { code: "arrived", label: "Vessel arrived" },
+  NOR_RETENDERED: { code: "nor_retendered", label: "NOR re-tendered" },
+};
+
 /**
  * The three events any of which a term may nominate as the end of laytime.
  * Which one applies is a per-term configuration the analyst confirms — most

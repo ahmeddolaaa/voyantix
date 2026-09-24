@@ -78,6 +78,8 @@ type TermFormState = {
   onceOnDemurrage: string;
   /** Default laytime-end event for port calls on this term. */
   laytimeEndEvent: string;
+  /** The C/P laytime clause as written — display only. */
+  laytimeClauseText: string;
   poolId: string;
 };
 
@@ -103,6 +105,7 @@ const emptyTermForm: TermFormState = {
   commencementTimeRule: "AT_EVENT",
   onceOnDemurrage: "NO",
   laytimeEndEvent: "LASHING_COMPLETED",
+  laytimeClauseText: "",
   poolId: "",
 };
 
@@ -289,6 +292,7 @@ export function ContractDetailScreen({
       commencementTimeRule: t.commencementTimeRule ?? "AT_EVENT",
       onceOnDemurrage: t.onceOnDemurrage ? "YES" : "NO",
       laytimeEndEvent: t.laytimeEndEvent ?? "OPS_COMPLETED",
+      laytimeClauseText: t.laytimeClauseText ?? "",
       poolId: t.poolId ?? "",
     });
     setTermFieldErrors({});
@@ -321,6 +325,7 @@ export function ContractDetailScreen({
       commencementTimeRule: termForm.commencementTimeRule,
       onceOnDemurrage: termForm.onceOnDemurrage === "YES",
       laytimeEndEvent: termForm.laytimeEndEvent,
+      laytimeClauseText: termForm.laytimeClauseText.trim() || null,
       poolId: termForm.poolId || null,
     };
     startTransition(async () => {
@@ -351,6 +356,7 @@ export function ContractDetailScreen({
         commencementTimeRule: termForm.commencementTimeRule,
         onceOnDemurrage: termForm.onceOnDemurrage === "YES",
         laytimeEndEvent: termForm.laytimeEndEvent,
+        laytimeClauseText: termForm.laytimeClauseText.trim() || null,
         ruleSetVersionId: termForm.ruleSetVersionId,
         poolId: termForm.poolId || null,
         status: termEditing?.status ?? "active",
@@ -663,6 +669,13 @@ export function ContractDetailScreen({
           </div>
 
           <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>ALLOWANCE &amp; RATES</p>
+          <Field
+            label="Laytime clause as written in the C/P"
+            description="Printed on the statement (e.g. 3000 MT PWWD FSHEX EIU). Display only — the calculation uses the fields below."
+          >
+            {(a) => (<TextInput {...a} value={termForm.laytimeClauseText} disabled={pending}
+              onChange={(e) => updateTermField("laytimeClauseText", e.target.value)} placeholder="optional" />)}
+          </Field>
           <div className="grid md:grid-cols-3 gap-x-6">
             <Field
               label="Allowance basis"

@@ -29,4 +29,12 @@ describe("sheetComment — laytime sheet wording", () => {
     expect(sheetComment({ reasons: ["STOPPAGE_EXCLUDED", "ON_DEMURRAGE", "EXCEPTED_ON_DEMURRAGE"], treatment: "EXCLUDED", countedFraction: 0, stoppageNames: ["Breakdown"] }))
       .toBe("Not to count – Breakdown (still excepted on demurrage)");
   });
+  it("waiting for berthing before the berth (not the first row, not on demurrage)", () => {
+    expect(sheetComment({ reasons: [], treatment: "COUNTED", countedFraction: 1, beforeBerth: true }))
+      .toBe("Time to count – waiting for berthing");
+    expect(sheetComment({ reasons: [], treatment: "COUNTED", countedFraction: 1, beforeBerth: true, isFirst: true }))
+      .toBe("Time to count – laytime started");
+    expect(sheetComment({ reasons: ["ON_DEMURRAGE"], treatment: "COUNTED", countedFraction: 1, beforeBerth: true }))
+      .toBe("Time to count – vessel is on demurrage");
+  });
 });

@@ -16,6 +16,8 @@ export type SheetCommentInput = {
   stoppageNames?: readonly string[];
   /** True for the first interval of the window. */
   isFirst?: boolean;
+  /** True when the row lies before the vessel berthed (berthing recorded). */
+  beforeBerth?: boolean;
 };
 
 const CAUSE_TEXT: Record<string, string> = {
@@ -54,7 +56,8 @@ export function sheetComment(input: SheetCommentInput): string {
     if (r.includes("COUNTED_WHILE_EXCLUDED_USED")) {
       return `Time to count – ${cause ?? "excepted day"} worked (used)`;
     }
-    return input.isFirst ? "Time to count – laytime started" : "Time to count";
+    if (input.isFirst) return "Time to count – laytime started";
+    return input.beforeBerth ? "Time to count – waiting for berthing" : "Time to count";
   }
 
   // Not counted.

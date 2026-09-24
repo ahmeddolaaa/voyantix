@@ -148,6 +148,13 @@
       "when": 1790229301440,
       "tag": "0020_dazzling_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790235174298,
+      "tag": "0021_curly_scream",
+      "breakpoints": true
     }
   ]
 }

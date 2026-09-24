@@ -112,4 +112,23 @@ describe("commitExtraction — lashing / documents and repeat commits", () => {
     const rows = await db.select().from(stoppages).where(eq(stoppages.portCallId, portCallId));
     expect(rows).toHaveLength(2);
   });
+
+  it("records 'vessel arrived' as a record-only event (custom type, no engine semantic)", async () => {
+    const r = await commitExtraction(portCallId, {
+      events: [{ type: "ARRIVED", occurredLocal: "2026-06-21T21:25" }],
+      stoppages: [],
+    });
+    expect(r.ok && r.data.committedEvents).toBe(1);
+    const [t] = await db
+      .select({ label: operationalEventTypes.label, sem: operationalEventTypes.systemSemantic, prot: operationalEventTypes.isProtected })
+      .from(operationalEventTypes)
+      .where(and(eq(operationalEventTypes.organizationId, orgId), eq(operationalEventTypes.code, "arrived")));
+    expect(t).toEqual({ label: "Vessel arrived", sem: null, prot: false });
+    // A second commit neither duplicates the event nor the type.
+    const again = await commitExtraction(portCallId, {
+      events: [{ type: "ARRIVED", occurredLocal: "2026-06-21T21:25" }],
+      stoppages: [],
+    });
+    expect(again.ok && again.data.committedEvents).toBe(0);
+  });
 });

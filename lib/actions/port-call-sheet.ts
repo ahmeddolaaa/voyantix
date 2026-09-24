@@ -26,6 +26,7 @@ import { loadSettlementDayPrecision } from "./_settlement-precision";
 import { settleBalance, type SettlementDayPrecision } from "@/lib/laytime/settlement";
 import { CalculationRefused } from "@/lib/laytime/refuse";
 import { sheetComment } from "@/lib/laytime/sheet-comments";
+import { getLocalParts } from "@/lib/laytime/timezone";
 import {
   COMMENCEMENT_EVENTS,
   COMMENCEMENT_TIME_RULES,
@@ -62,6 +63,8 @@ export type PortCallSheet = {
   contractDate: string | null;
   cargo: string;
   terms: {
+    /** The C/P wording, when the term records it. */
+    clauseText: string | null;
     allowance: string;
     ruleSet: string;
     commencement: string;
@@ -180,23 +183,83 @@ export async function getPortCallSheet(
       const namesByInterval = new Map<string, string[]>();
       for (const l of links) namesByInterval.set(l.intervalId, [...(namesByInterval.get(l.intervalId) ?? []), l.name]);
 
-      const rows: SheetRow[] = intervalRows.map((iv, i) => {
+      // Rows are the persisted intervals; for READING only, a row that spans
+      // the berthing is shown as two lines (waiting for berth / at berth), as
+      // laytime sheets do. Counted time is split in proportion; totals unchanged.
+      const berths = eventRows.filter((e) => e.semantic === "BERTHED");
+      const berthedAt = berths.length === 1 ? berths[0].at.getTime() : null;
+      type Piece = SheetRow & { day: string; merge: "DEMURRAGE" | "DEMURRAGE_EXCEPTED" | null; beforeBerth?: boolean };
+      const dayOf = (d: Date) => {
+        const p = getLocalParts(d, pc.timeZone);
+        return `${p.year}-${p.month}-${p.day}`;
+      };
+      const pieces: Piece[] = [];
+      intervalRows.forEach((iv, i) => {
         const fraction = Number(iv.countedFraction);
-        const elapsed = (iv.end.getTime() - iv.start.getTime()) / 1000;
-        return {
-          start: iv.start,
-          end: iv.end,
-          countedSeconds: elapsed * fraction,
-          counted: fraction > 0,
-          comment: sheetComment({
-            reasons: iv.reasons,
-            treatment: iv.treatment,
-            countedFraction: fraction,
-            stoppageNames: namesByInterval.get(iv.id),
-            isFirst: i === 0,
-          }),
-        };
+        const s0 = iv.start.getTime();
+        const e0 = iv.end.getTime();
+        const spans: Array<[number, number]> =
+          berthedAt !== null && berthedAt > s0 && berthedAt < e0
+            ? [[s0, berthedAt], [berthedAt, e0]]
+            : [[s0, e0]];
+        const onDemurrageCounted = fraction >= 1 && iv.reasons.includes("ON_DEMURRAGE");
+        const excepted = iv.reasons.includes("EXCLUDED_WEEKDAY") || iv.reasons.includes("HOLIDAY");
+        spans.forEach(([a, b], k) => {
+          const beforeBerth = berthedAt === null ? undefined : b <= berthedAt;
+          pieces.push({
+            start: new Date(a),
+            end: new Date(b),
+            countedSeconds: ((b - a) / 1000) * fraction,
+            counted: fraction > 0,
+            day: dayOf(new Date(a)),
+            beforeBerth,
+            merge: onDemurrageCounted ? (excepted ? "DEMURRAGE_EXCEPTED" : "DEMURRAGE") : null,
+            comment: sheetComment({
+              reasons: iv.reasons,
+              treatment: iv.treatment,
+              countedFraction: fraction,
+              stoppageNames: namesByInterval.get(iv.id),
+              isFirst: i === 0 && k === 0,
+              beforeBerth,
+            }),
+          });
+        });
       });
+
+      // Once on demurrage every counted minute is simply "on demurrage", so
+      // (like the sheets) consecutive counted rows of the same day and the
+      // same side of the berthing read as ONE row. Rows that do not count
+      // always stay on their own.
+      const rows: SheetRow[] = [];
+      let prev: Piece | null = null;
+      for (const p of pieces) {
+        if (
+          prev &&
+          prev.merge !== null &&
+          p.merge !== null &&
+          prev.day === p.day &&
+          prev.beforeBerth === p.beforeBerth &&
+          prev.end.getTime() === p.start.getTime()
+        ) {
+          prev.end = p.end;
+          prev.countedSeconds += p.countedSeconds;
+          if (p.merge === "DEMURRAGE_EXCEPTED") prev.merge = "DEMURRAGE_EXCEPTED";
+          prev.comment =
+            prev.merge === "DEMURRAGE_EXCEPTED"
+              ? "Time to count – excepted day, vessel is on demurrage"
+              : "Time to count – vessel is on demurrage";
+          continue;
+        }
+        const copy: Piece = { ...p };
+        rows.push(copy);
+        prev = copy;
+      }
+      // Hand back plain rows (the helper fields are internal).
+      for (const r of rows as Piece[]) {
+        delete (r as Partial<Piece>).day;
+        delete (r as Partial<Piece>).merge;
+        delete (r as Partial<Piece>).beforeBerth;
+      }
 
       // Terms in words.
       const allowance =
@@ -262,6 +325,7 @@ export async function getPortCallSheet(
         contractDate: contract?.contractDate ?? null,
         cargo,
         terms: {
+          clauseText: term.laytimeClauseText,
           allowance,
           ruleSet,
           commencement,

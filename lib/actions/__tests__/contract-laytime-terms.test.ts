@@ -231,6 +231,19 @@ describe("createContractLaytimeTerm — bounded vocabulary", () => {
     bad({ commencementTimeRule: "MORNING_NOR_1400", turnTimeHours: "6", turnTimeTrigger: "NOR_TENDERED" }));
   it("rejects an unknown despatch basis", () => bad({ despatchBasis: "whatever" }));
   it("rejects an unknown laytime end event", () => bad({ laytimeEndEvent: "SAILED" }));
+  it("rejects a C/P clause longer than 200 characters", () => bad({ laytimeClauseText: "x".repeat(201) }));
+
+  it("stores the C/P laytime clause as written (display only)", async () => {
+    currentToken = adminToken;
+    const r = await createContractLaytimeTerm(contractA, validTerm({ laytimeClauseText: "  3000 MT PWWD FSHEX EIU " }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const [row] = await db
+      .select({ c: contractLaytimeTerms.laytimeClauseText })
+      .from(contractLaytimeTerms)
+      .where(eq(contractLaytimeTerms.id, r.data.id));
+    expect(row.c).toBe("3000 MT PWWD FSHEX EIU");
+  });
 
   it("stores the laytime end event; defaults to OPS_COMPLETED", async () => {
     currentToken = adminToken;

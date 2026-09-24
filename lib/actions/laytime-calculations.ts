@@ -225,10 +225,9 @@ export async function recalculatePortCall(
             stoppageId: string;
           }[] = [];
           for (const row of inserted) {
-            if (
-              row.treatment === "EXCLUDED" &&
-              row.reasons.includes("STOPPAGE_EXCLUDED")
-            ) {
+            // Traceability: link every interval that lies inside a stoppage,
+            // including one that counts because the vessel is on demurrage.
+            if (row.reasons.includes("STOPPAGE_EXCLUDED")) {
               const s = containingStoppage(
                 { start: row.startTime, end: row.endTime },
                 rawStoppages,

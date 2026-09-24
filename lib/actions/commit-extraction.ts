@@ -16,11 +16,13 @@ import { ForbiddenError } from "@/lib/auth/session";
 import { instantFromLocal } from "@/lib/laytime/timezone";
 import {
   ENGINE_SEMANTIC,
+  INFO_EVENT_TYPE,
   STOPPAGE_CATEGORY_LABEL,
   type LaytimeEventType,
   type StoppageCategory,
 } from "@/lib/ingestion/schema";
 import { createStoppageReason } from "./stoppage-reasons";
+import { createEventType } from "./event-types";
 import { recordOperationalEvent } from "./operational-events";
 import { createStoppage } from "./stoppages";
 import { type ActionResult, ok, fail } from "./result";
@@ -127,11 +129,16 @@ export async function commitExtraction(
         .select({
           id: operationalEventTypes.id,
           sem: operationalEventTypes.systemSemantic,
+          code: operationalEventTypes.code,
         })
         .from(operationalEventTypes)
         .where(eq(operationalEventTypes.organizationId, ctx.organizationId));
       const typeBySemantic = new Map<string, string>();
-      for (const t of types) if (t.sem) typeBySemantic.set(t.sem, t.id);
+      const typeByCode = new Map<string, string>();
+      for (const t of types) {
+        if (t.sem) typeBySemantic.set(t.sem, t.id);
+        typeByCode.set(t.code.trim().toLowerCase(), t.id);
+      }
 
       const reasons = await db
         .select({ id: stoppageReasons.id, name: stoppageReasons.name })
@@ -176,14 +183,31 @@ export async function commitExtraction(
 
       for (const e of payload.events) {
         const sem = ENGINE_SEMANTIC[e.type];
-        if (!sem) {
-          skipped.push(`Event "${e.type}" has no engine semantic yet.`);
-          continue;
-        }
-        const eventTypeId = typeBySemantic.get(sem);
-        if (!eventTypeId) {
-          skipped.push(`No event type configured for ${sem}.`);
-          continue;
+        let eventTypeId: string | undefined;
+        if (sem) {
+          eventTypeId = typeBySemantic.get(sem);
+          if (!eventTypeId) {
+            skipped.push(`No event type configured for ${sem}.`);
+            continue;
+          }
+        } else {
+          // Record-only event (e.g. vessel arrived): an ordinary custom type,
+          // created the first time — it never affects the calculation (F8).
+          const info = INFO_EVENT_TYPE[e.type];
+          if (!info) {
+            skipped.push(`Event "${e.type}" has no engine semantic yet.`);
+            continue;
+          }
+          eventTypeId = typeByCode.get(info.code);
+          if (!eventTypeId) {
+            const created = await createEventType({ code: info.code, label: info.label });
+            if (!created.ok) {
+              skipped.push(`Event "${info.label}": could not create its event type — ${created.message}`);
+              continue;
+            }
+            eventTypeId = created.data.id;
+            typeByCode.set(info.code, eventTypeId);
+          }
         }
         const occurredAt = toIso(e.occurredLocal, tz);
         if (!occurredAt) {
