@@ -14,6 +14,8 @@ import {
 } from "@/components/admin/StatementDocument";
 import { EmptyState } from "@/components/ui";
 import Link from "next/link";
+import { getTenantContext } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
 
 /**
  * Printable statement document for a voyage. A server component: it gathers
@@ -117,8 +119,16 @@ export default async function StatementPage({
     });
   }
 
+  const ctx = await getTenantContext();
+  const d = statement.data.finalizedAt ?? new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
   const doc: StatementDoc = {
     voyageId: id,
+    issuer: ctx?.organizationName ?? "",
+    preparedOn: `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`,
+    outdated: statement.data.outdated,
+    unresolvedCount: statement.data.unresolvedCount,
+    canFinalize: ctx ? hasPermission(ctx, "statement.finalize") : false,
     voyageReference: voyage.data.voyageReference,
     vesselName: voyage.data.vesselName,
     counterparty: contract && contract.ok ? contract.data.counterparty : null,
