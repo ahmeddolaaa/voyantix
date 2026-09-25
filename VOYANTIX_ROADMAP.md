@@ -19,20 +19,34 @@
 
 ---
 
-## CURRENT STATE  (updated 2026-09-23 — read this first)
+## CURRENT STATE  (updated 2026-09-25 — read this first)
 
-> This section was rewritten on 2026-09-23 at the end of a very long session
-> whose early context had been summarised. Everything below was checked
-> against the actual repo, not memory. Older state notes are kept further
-> down in the DECISION LOG for history.
+### HANDOFF 2026-09-25 — continuing in Claude Code (Adel's request)
+Work moves from the claude.ai sandbox (bundles) to **Claude Code running in Adel's Google Cloud Shell**, in `~/voyantix` on `rebuild`. There Claude can run commands, commit and **push directly** — the bundle workflow below is only for sessions that cannot push. Reply to Adel in Egyptian Arabic (see Working agreement).
+
+**Where we stopped:** demo-data step, between backup and wipe.
+- ✅ Production backup taken 2026-09-24 15:46 UTC through the Railway SSH tunnel: `~/voyantix/voyantix-backup-2026-09-24T15-46-51-168Z.json` (1 org, 2 users, 1 voyage, 22 migrations). Adel was asked to download it too.
+- ⏳ **Wipe + demo seed NOT confirmed run.** Check first: `select name from organizations` through the tunnel — "Bulk Trading" means it ran.
+- Tunnel recipe (Railway CLI is installed and linked in Cloud Shell: workspace ahmeddolaaa's Projects → project **charismatic-essence** → env **production** → service **Postgres**; SSH key registered): tab 1 `railway connect Postgres --tunnel-only --port 15432` (keep open); tab 2 `cd ~/voyantix && set -a; source .env.backup; set +a`. `.env.backup` (git-ignored) must hold `DATABASE_URL=postgresql://postgres:<PGPASSWORD>@localhost:15432/railway` and `DEMO_PASSWORD=<10+ chars, Adel's choice>`. Terminal paste does not work for Adel in Cloud Shell — edit files in the editor (`cloudshell edit <file>`), where Ctrl+V works.
+- Seed: `WIPE_CONFIRM=wipe-everything npm run demo:seed` → expect `Target database: localhost:15432`, `Wiped 33 tables.`, then 10 voyage lines.
+
+**Next steps, in order:**
+1. Run (or confirm) the demo seed as above. Login afterwards: **ahmed@bulk-trading.com** (Ahmed Adel, admin) / DEMO_PASSWORD; karim@bulk-trading.com (operations) same password.
+2. Clean up: stop the tunnel (Ctrl+C), **delete `.env.backup`**, and **rotate the Postgres password** — it was pasted into the chat on 2026-09-24. Rotate = `ALTER USER postgres WITH PASSWORD '<new>'` through the tunnel **and** set the same value in the Postgres service's `PGPASSWORD` variable on Railway; confirm the voyantix service's `DATABASE_URL` references the Postgres variables (e.g. `${{Postgres.DATABASE_URL}}`), redeploy, check the site logs in. Public Networking on Postgres was never enabled — keep it off.
+3. `scripts/bootstrap.ts` now skips when ANY organization exists (commit of 2026-09-25) — production runs it on every deploy; without the guard it would re-create "Demo Shipping Co." with `admin@demo.test / voyantix` after the wipe. Make sure this commit is deployed before or right after the seed.
+4. **Gemini live check:** SOF upload was only verified against a local stand-in. On production, open MV ATLAS DAWN → Import from SOF → upload `video-assets/SOF_MV_ATLAS_DAWN.pdf` (fictional). Expected after commit: 8 events, 3 stoppages, actual 7,512.34 MT recorded, recalculated automatically → **demurrage 2,908.92 (5h 50m over)**. If Gemini errors, the message names the cause (key, rate limit, model).
+5. **Reports — decision pending from Adel:** build v1 (claims by voyage / counterparty / port, laytime used vs allowed per port call, tonnes by month/port, CSV export; no B6/B9) or hide it from the sidebar. Recommended: build after the demo data is in.
+6. `video-assets/RECORDING-CHECKLIST.md` is **stale** (old seed script, old vessel names) — rewrite it for the Bulk Trading demo, then the LinkedIn video.
+
+**Shipped 2026-09-24 (all on `origin/rebuild`, 549 tests green):** Chart room frame (sidebar, tokens, fonts) · sign-in "From berth to bill" · dashboard (working now with laytime clock + cargo, claims, monthly chart, statements) · voyage page tabs (Laytime / Cargo & loading / Events & SOF / Stoppages / Terms) · laytime day grid B + curve C · cargo & loading overview + "Will it finish in laytime?" forecast · statement letterhead + claim rail with finalize · lists and settings polish · SOF upload read by Gemini · backup + demo seed scripts · SOF commit records the document quantity and recalculates. Design mockups: Design canvas "Voyantix — Redesign" (claude.ai artifact).
 
 ### Where things live
 - **Repo:** `github.com/ahmeddolaaa/voyantix`, branch **`rebuild`** (the only working branch; `main` is an old checkpoint `7abb42a`).
-- **Latest commit:** see `git log -1` on `rebuild` (the commit that added this line: amended GENCON 6(c) commencement) — full suite **532 tests green**, typecheck clean.
+- **Latest commit:** see `git log -1` on `rebuild` — full suite **549 tests green**, typecheck clean.
 - **Stack:** Next.js 16.3.3 (Turbopack) · React 19.2.8 · Drizzle ORM · PostgreSQL 16 · Vitest · tsx. Node ≥ 20.
-- **Migrations:** `0000`–`0020` (21 files). Latest: `0018` term `commencement_time_rule`, `0019` org `settlement_day_precision` (+ CHECK), `0020` laytime end: event-type vocabulary +2 semantics, term `laytime_end_event`, port call `laytime_end_override` (+ CHECKs, seeds the 2 protected event types for every org).
+- **Migrations:** `0000`–`0021` (22 files; `0021` term `laytime_clause_text`). Latest: `0018` term `commencement_time_rule`, `0019` org `settlement_day_precision` (+ CHECK), `0020` laytime end: event-type vocabulary +2 semantics, term `laytime_end_event`, port call `laytime_end_override` (+ CHECKs, seeds the 2 protected event types for every org).
 - **Production:** Railway — `https://voyantix-production.up.railway.app`, managed Postgres, deploys automatically from `origin/rebuild`. The start command (set in the Railway UI, not in the repo) runs `db:migrate`, then `db:bootstrap`, then `next start`. After a deploy, hard-refresh (Ctrl+Shift+R) — the browser cache has shown the old UI before.
-- **Login (demo):** `admin@demo.test` / `voyantix` — org "Demo Shipping Co." (slug `demo-shipping`).
+- **Login (demo):** after the demo seed, `ahmed@bulk-trading.com` / DEMO_PASSWORD — org "Bulk Trading" (slug `bulk-trading`). Before it: `admin@demo.test` / `voyantix` (bootstrap).
 
 ### How code reaches production (Adel's workflow — keep it exactly like this)
 Claude works in its own sandbox and cannot push. Delivery is a **git bundle**:
@@ -116,7 +130,7 @@ Source files (uploaded 2026-09): MY FELLAS NOR/SOF loading, MY FELLAS laytime ca
 - Don't reopen frozen decisions; push back once, then respect his call. No harsh or lecturing tone; own mistakes directly.
 
 ### Sandbox notes (for Claude)
-- Repo at `/tmp/voyantix`; dev DB `postgresql://voyantix:voyantix@127.0.0.1:5432/voyantix_dev` (`pg_ctlcluster 16 main start`; run `npm run db:migrate` after pulling migrations — tests fail on missing columns otherwise).
+- Repo at `/home/claude/vx` (claude.ai sandbox) or `~/voyantix` (Cloud Shell); dev DB `postgresql://voyantix:voyantix@127.0.0.1:5432/voyantix_dev` (`pg_ctlcluster 16 main start`; run `npm run db:migrate` after pulling migrations — tests fail on missing columns otherwise).
 - Dev server: `DATABASE_URL=... setsid nohup npx next dev -p 3000 &` (never `pkill -f "next dev"` from the same shell — it kills the shell).
 - Playwright: `/home/claude/.npm-global/lib/node_modules/playwright`, Chromium `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. Required-field labels contain `*`, so use non-exact `getByLabel`.
 - React 19: state set inside `startTransition(async …)` is not committed until the action finishes — do optimistic updates BEFORE `startTransition`.
