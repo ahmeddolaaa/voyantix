@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatInstant } from "../format";
+import { formatInstant, formatDurationSeconds, sheetBalanceSeconds } from "../format";
 
 /**
  * The formatter must be a pure function of (instant, timeZone): the same
@@ -79,5 +79,18 @@ describe("formatInstant — DST", () => {
   it("8. New York in summer is EDT (UTC-4)", () => {
     expect(formatInstant(new Date("2026-07-15T16:00:00.000Z"), "America/New_York"))
       .toBe("15 Jul 2026, 12:00");
+  });
+});
+
+describe("sheetBalanceSeconds — balance as the laytime sheets show it", () => {
+  it("MY FELLAS: 4d 21h 15m used vs 1d 00h 25m 09s allowed → 3d 20h 50m over", () => {
+    const allowed = (3052.403 / 3000) * 86400;
+    const used = 4 * 86400 + 21 * 3600 + 15 * 60;
+    expect(formatDurationSeconds(sheetBalanceSeconds(allowed, used))).toBe("-3d 20h 50m");
+  });
+
+  it("test_2: 20 h used vs 4d 07h 26m 50s allowed → 3d 11h 26m saved", () => {
+    const allowed = (10775.767 / 2500) * 86400;
+    expect(formatDurationSeconds(sheetBalanceSeconds(allowed, 20 * 3600))).toBe("3d 11h 26m");
   });
 });

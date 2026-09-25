@@ -21,6 +21,8 @@ import {
   contractStoppageRules,
   holidays,
   shiftPerformances,
+  cargoPlans,
+  stoppageReasons,
 } from "@/db/schema";
 import { and, asc, eq, gt, isNull } from "drizzle-orm";
 import type { TenantContext } from "@/lib/auth/session";
@@ -59,6 +61,7 @@ export async function loadPortCallCalcData(
     .select({
       timeZone: voyagePortCalls.effectiveTimezone,
       termId: voyagePortCalls.contractLaytimeTermId,
+      laytimeEndOverride: voyagePortCalls.laytimeEndOverride,
     })
     .from(voyagePortCalls)
     .where(
@@ -72,11 +75,16 @@ export async function loadPortCallCalcData(
 
   const [term] = await db
     .select({
+      allowanceBasis: contractLaytimeTerms.allowanceBasis,
       allowance: contractLaytimeTerms.allowance,
       allowanceUnit: contractLaytimeTerms.allowanceUnit,
+      allowanceRate: contractLaytimeTerms.allowanceRate,
       commencementRule: contractLaytimeTerms.commencementRule,
+      commencementTimeRule: contractLaytimeTerms.commencementTimeRule,
       turnTimeHours: contractLaytimeTerms.turnTimeHours,
       turnTimeTrigger: contractLaytimeTerms.turnTimeTrigger,
+      onceOnDemurrage: contractLaytimeTerms.onceOnDemurrage,
+      laytimeEndEvent: contractLaytimeTerms.laytimeEndEvent,
       ruleSetVersionId: contractLaytimeTerms.ruleSetVersionId,
     })
     .from(contractLaytimeTerms)
@@ -137,8 +145,10 @@ export async function loadPortCallCalcData(
       start: stoppages.startTime,
       end: stoppages.endTime,
       reasonId: stoppages.reasonId,
+      reasonName: stoppageReasons.name,
     })
     .from(stoppages)
+    .innerJoin(stoppageReasons, eq(stoppageReasons.id, stoppages.reasonId))
     .where(
       and(
         eq(stoppages.portCallId, portCallId),
@@ -152,16 +162,18 @@ export async function loadPortCallCalcData(
     end: s.end,
     reasonId: s.reasonId,
   }));
-  const loadedStoppages: LoadedStoppage[] = rawStoppages.map((s) => ({
+  const loadedStoppages: LoadedStoppage[] = stoppageRows.map((s) => ({
     start: s.start,
     end: s.end,
     reasonId: s.reasonId,
+    reasonName: s.reasonName,
   }));
 
   const ruleRows = await db
     .select({
       stoppageReasonId: contractStoppageRules.stoppageReasonId,
       countability: contractStoppageRules.countability,
+      excludedOnDemurrage: contractStoppageRules.excludedOnDemurrage,
     })
     .from(contractStoppageRules)
     .where(
@@ -173,6 +185,7 @@ export async function loadPortCallCalcData(
   const stoppageRules: LoadedStoppageRule[] = ruleRows.map((r) => ({
     stoppageReasonId: r.stoppageReasonId,
     countability: r.countability as StoppageCountability,
+    excludedOnDemurrage: r.excludedOnDemurrage,
   }));
 
   let holidayDates: string[] = [];
@@ -196,14 +209,43 @@ export async function loadPortCallCalcData(
     );
   const workedLocalDates = workedRows.map((w) => w.shiftDate);
 
+  // Total ACTUAL cargo quantity on this port call (MT), for a rate-based
+  // allowance. Only recorded actuals count; if none are recorded the total is
+  // null and a rate-based term refuses rather than guessing from planned qty.
+  const cargoRows = await db
+    .select({
+      plannedQuantityMt: cargoPlans.plannedQuantityMt,
+      actualQuantityMt: cargoPlans.actualQuantityMt,
+    })
+    .from(cargoPlans)
+    .where(
+      and(
+        eq(cargoPlans.portCallId, portCallId),
+        eq(cargoPlans.organizationId, ctx.organizationId)
+      )
+    );
+  const sumOf = (vals: (string | null)[]): string | null => {
+    const nums = vals.filter((q): q is string => q != null && q.trim() !== "");
+    return nums.length === 0
+      ? null
+      : String(nums.reduce((sum, q) => sum + Number(q), 0));
+  };
+  const actualQuantityMt = sumOf(cargoRows.map((r) => r.actualQuantityMt));
+  const plannedQuantityMt = sumOf(cargoRows.map((r) => r.plannedQuantityMt));
+
   const data: PortCallCalcData = {
     timeZone: portCall.timeZone,
     term: {
+      allowanceBasis: term.allowanceBasis,
       allowance: term.allowance,
       allowanceUnit: term.allowanceUnit,
+      allowanceRate: term.allowanceRate,
       commencementRule: term.commencementRule,
+      commencementTimeRule: term.commencementTimeRule,
       turnTimeHours: term.turnTimeHours,
       turnTimeTrigger: term.turnTimeTrigger,
+      onceOnDemurrage: term.onceOnDemurrage,
+      laytimeEndEvent: term.laytimeEndEvent,
     },
     version: {
       excludedWeekdays: version.excludedWeekdays,
@@ -215,6 +257,9 @@ export async function loadPortCallCalcData(
     stoppageRules,
     holidayDates,
     workedLocalDates,
+    actualQuantityMt,
+    plannedQuantityMt,
+    laytimeEndOverride: portCall.laytimeEndOverride,
   };
 
   return {

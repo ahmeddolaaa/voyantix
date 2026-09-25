@@ -63,6 +63,17 @@ export function formatDurationSeconds(totalSeconds: number): string {
 }
 
 /**
+ * The balance (allowed − used) as laytime sheets DISPLAY it: allowed is shown
+ * cut to the whole minute, and the balance is that shown figure minus used.
+ * Evidence: MY FELLAS 4d 21h 15m − 1d 00h 25m = 3d 20h 50m (exact 49m 50s);
+ * test_2 4d 07h 26m − 20h = 3d 11h 26m (exact 26m 50s). DISPLAY ONLY — the
+ * settlement amount always uses the exact seconds.
+ */
+export function sheetBalanceSeconds(allowedSeconds: number, usedSeconds: number): number {
+  return Math.floor(allowedSeconds / 60) * 60 - usedSeconds;
+}
+
+/**
  * Formats a settlement amount. Currency is carried by the term's rate and is
  * not stored, so no symbol is shown — grouping only, to two decimals when
  * fractional.

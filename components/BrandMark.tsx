@@ -1,19 +1,21 @@
+/**
+ * Voyantix mark: a brass tile carrying a white "V" chevron with a faint
+ * horizon line — the same mark in the sidebar, sign-in and statement
+ * letterhead.
+ */
 export function BrandMark({ size = 24 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      style={{ color: "#E6A05A" }}
-    >
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+      <rect width="32" height="32" rx="8" fill="var(--brass)" />
       <path
-        d="M3 18C7 18 6 8 11 8C15 8 14 15 19 15"
-        stroke="currentColor"
-        strokeWidth="1.8"
+        d="M8 9l8 15 8-15"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2.6"
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
-      <circle cx="19" cy="15" r="2" fill="currentColor" />
+      <path d="M11.5 9h9" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" opacity=".55" />
     </svg>
   );
 }

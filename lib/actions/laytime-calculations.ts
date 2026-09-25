@@ -15,6 +15,7 @@ import { loadPortCallCalcData, type RawStoppage } from "./_calc-loader";
 import { computePortCall, type PortCallCalcData } from "@/lib/laytime/service/compute";
 import { CalculationRefused } from "@/lib/laytime/refuse";
 import { ENGINE_VERSION } from "@/lib/laytime/version";
+import { loadSettlementDayPrecision } from "./_settlement-precision";
 import { settleBalance, type Settlement } from "@/lib/laytime/settlement";
 
 /**
@@ -45,6 +46,10 @@ function resolvedRulesSnapshot(
     allowanceUnit: data.term.allowanceUnit,
     allowedSeconds,
     commencementRule: data.term.commencementRule,
+    commencementTimeRule: data.term.commencementTimeRule,
+    laytimeEndEvent: data.term.laytimeEndEvent ?? "OPS_COMPLETED",
+    laytimeEndOverride: data.laytimeEndOverride ?? null,
+    onceOnDemurrage: data.term.onceOnDemurrage,
     turnTimeHours: data.term.turnTimeHours,
     turnTimeTrigger: data.term.turnTimeTrigger,
     excludedWeekdays: data.version.excludedWeekdays,
@@ -197,6 +202,7 @@ export async function recalculatePortCall(
             startTime: iv.start,
             endTime: iv.end,
             treatment: iv.treatment,
+            countedFraction: String(iv.countedFraction),
             reasons: iv.reasons,
           }));
           const inserted = intervalRows.length
@@ -219,10 +225,9 @@ export async function recalculatePortCall(
             stoppageId: string;
           }[] = [];
           for (const row of inserted) {
-            if (
-              row.treatment === "EXCLUDED" &&
-              row.reasons.includes("STOPPAGE_EXCLUDED")
-            ) {
+            // Traceability: link every interval that lies inside a stoppage,
+            // including one that counts because the vessel is on demurrage.
+            if (row.reasons.includes("STOPPAGE_EXCLUDED")) {
               const s = containingStoppage(
                 { start: row.startTime, end: row.endTime },
                 rawStoppages,
@@ -280,6 +285,7 @@ export type PersistedInterval = {
   start: Date;
   end: Date;
   treatment: "COUNTED" | "EXCLUDED";
+  countedFraction: number;
   reasons: string[];
 };
 
@@ -322,6 +328,7 @@ export async function getPortCallCalculation(
             start: laytimeIntervals.startTime,
             end: laytimeIntervals.endTime,
             treatment: laytimeIntervals.treatment,
+            countedFraction: laytimeIntervals.countedFraction,
             reasons: laytimeIntervals.reasons,
           })
           .from(laytimeIntervals)
@@ -356,6 +363,7 @@ export async function getPortCallCalculation(
             start: r.start,
             end: r.end,
             treatment: r.treatment,
+            countedFraction: Number(r.countedFraction),
             reasons: r.reasons,
           })),
         });
@@ -434,6 +442,8 @@ export async function settlePortCall(
           );
         if (!term) return fail<SettlementView>("NOT_FOUND", "Laytime term not found.");
 
+        const dayPrecision = await loadSettlementDayPrecision(ctx.organizationId);
+
         try {
           const settlement = settleBalance({
             outcome: calc.outcome!,
@@ -441,6 +451,7 @@ export async function settlePortCall(
             demurrageRate: Number(term.demurrageRate),
             despatchRate: term.despatchRate === null ? null : Number(term.despatchRate),
             despatchBasis: term.despatchBasis,
+            dayPrecision,
           });
           return ok<SettlementView>({ status: "settled", settlement });
         } catch (e) {

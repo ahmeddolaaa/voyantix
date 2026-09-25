@@ -16,6 +16,15 @@ import {
   type ContractLaytimeTermInput,
 } from "@/lib/actions/contract-laytime-terms";
 import { DataTable, type Column, type SortState } from "@/components/DataTable";
+import { TermStoppageRules } from "@/components/admin/TermStoppageRules";
+import {
+  COMMENCEMENT_EVENTS,
+  COMMENCEMENT_TIME_RULES,
+  LAYTIME_END_EVENTS,
+  ALLOWANCE_UNITS,
+  DESPATCH_BASES,
+  isOneOf,
+} from "@/lib/laytime/term-vocabulary";
 import { Field, TextInput, FormError, SubmitButton } from "@/components/forms";
 import {
   Card,
@@ -54,29 +63,49 @@ type TermFormState = {
   portId: string;
   cargoId: string;
   ruleSetVersionId: string;
+  allowanceBasis: string;
   allowance: string;
   allowanceUnit: string;
+  allowanceRate: string;
   demurrageRate: string;
   despatchRate: string;
   despatchBasis: string;
   turnTimeHours: string;
   turnTimeTrigger: string;
   commencementRule: string;
+  commencementTimeRule: string;
+  /** "YES" | "NO" — once on demurrage, always on demurrage. */
+  onceOnDemurrage: string;
+  /** Default laytime-end event for port calls on this term. */
+  laytimeEndEvent: string;
+  /** The C/P laytime clause as written — display only. */
+  laytimeClauseText: string;
   poolId: string;
 };
+
+/** The usual laytime end: lashing completed for a load, completion for a discharge. */
+function defaultLaytimeEnd(fn: string): string {
+  return fn === "LOAD" ? "LASHING_COMPLETED" : "OPS_COMPLETED";
+}
 const emptyTermForm: TermFormState = {
   function: "LOAD",
   portId: "",
   cargoId: "",
   ruleSetVersionId: "",
+  allowanceBasis: "FIXED",
   allowance: "",
-  allowanceUnit: "",
+  allowanceUnit: "days",
+  allowanceRate: "",
   demurrageRate: "",
   despatchRate: "",
   despatchBasis: "",
   turnTimeHours: "",
   turnTimeTrigger: "",
-  commencementRule: "",
+  commencementRule: "NOR_TENDERED",
+  commencementTimeRule: "AT_EVENT",
+  onceOnDemurrage: "NO",
+  laytimeEndEvent: "LASHING_COMPLETED",
+  laytimeClauseText: "",
   poolId: "",
 };
 
@@ -109,6 +138,7 @@ export function ContractDetailScreen({
   versionOptions,
   ports,
   cargoes,
+  stoppageReasons,
 }: {
   contractId: string;
   contractReference: string;
@@ -118,8 +148,10 @@ export function ContractDetailScreen({
   versionOptions: VersionOption[];
   ports: MasterOption[];
   cargoes: MasterOption[];
+  stoppageReasons: MasterOption[];
 }) {
   const [pending, startTransition] = useTransition();
+  const [rulesTermId, setRulesTermId] = useState<string | null>(null);
 
   // ── Pools state ──────────────────────────────────────────────────────────
   const [pools, setPools] = useState(initialPools);
@@ -247,14 +279,20 @@ export function ContractDetailScreen({
       portId: t.portId ?? "",
       cargoId: t.cargoId ?? "",
       ruleSetVersionId: t.ruleSetVersionId,
+      allowanceBasis: t.allowanceBasis ?? "FIXED",
       allowance: t.allowance,
       allowanceUnit: t.allowanceUnit,
+      allowanceRate: t.allowanceRate ?? "",
       demurrageRate: t.demurrageRate,
       despatchRate: t.despatchRate ?? "",
       despatchBasis: t.despatchBasis ?? "",
       turnTimeHours: t.turnTimeHours ?? "",
       turnTimeTrigger: t.turnTimeTrigger ?? "",
       commencementRule: t.commencementRule,
+      commencementTimeRule: t.commencementTimeRule ?? "AT_EVENT",
+      onceOnDemurrage: t.onceOnDemurrage ? "YES" : "NO",
+      laytimeEndEvent: t.laytimeEndEvent ?? "OPS_COMPLETED",
+      laytimeClauseText: t.laytimeClauseText ?? "",
       poolId: t.poolId ?? "",
     });
     setTermFieldErrors({});
@@ -274,14 +312,20 @@ export function ContractDetailScreen({
       portId: termForm.portId || null,
       cargoId: termForm.cargoId || null,
       ruleSetVersionId: termForm.ruleSetVersionId,
+      allowanceBasis: termForm.allowanceBasis,
       allowance: termForm.allowance,
       allowanceUnit: termForm.allowanceUnit,
+      allowanceRate: termForm.allowanceRate || null,
       demurrageRate: termForm.demurrageRate,
       despatchRate: termForm.despatchRate || null,
       despatchBasis: termForm.despatchBasis || null,
       turnTimeHours: termForm.turnTimeHours || null,
       turnTimeTrigger: termForm.turnTimeTrigger || null,
       commencementRule: termForm.commencementRule,
+      commencementTimeRule: termForm.commencementTimeRule,
+      onceOnDemurrage: termForm.onceOnDemurrage === "YES",
+      laytimeEndEvent: termForm.laytimeEndEvent,
+      laytimeClauseText: termForm.laytimeClauseText.trim() || null,
       poolId: termForm.poolId || null,
     };
     startTransition(async () => {
@@ -299,20 +343,28 @@ export function ContractDetailScreen({
         function: termForm.function,
         portId: termForm.portId || null,
         cargoId: termForm.cargoId || null,
-        allowance: termForm.allowance.trim(),
-        allowanceUnit: termForm.allowanceUnit.trim(),
+        allowanceBasis: termForm.allowanceBasis,
+        allowance: termForm.allowanceBasis === "RATE" ? "0" : termForm.allowance.trim(),
+        allowanceUnit: termForm.allowanceBasis === "RATE" ? "days" : termForm.allowanceUnit.trim(),
+        allowanceRate: termForm.allowanceBasis === "RATE" ? termForm.allowanceRate.trim() : null,
         demurrageRate: termForm.demurrageRate.trim(),
         despatchRate: termForm.despatchRate.trim() || null,
         despatchBasis: termForm.despatchBasis.trim() || null,
         turnTimeHours: termForm.turnTimeHours.trim() || null,
-        turnTimeTrigger: termForm.turnTimeTrigger.trim() || null,
-        commencementRule: termForm.commencementRule.trim(),
+        turnTimeTrigger: termForm.turnTimeHours.trim() ? termForm.turnTimeTrigger || null : null,
+        commencementRule: termForm.commencementRule,
+        commencementTimeRule: termForm.commencementTimeRule,
+        onceOnDemurrage: termForm.onceOnDemurrage === "YES",
+        laytimeEndEvent: termForm.laytimeEndEvent,
+        laytimeClauseText: termForm.laytimeClauseText.trim() || null,
         ruleSetVersionId: termForm.ruleSetVersionId,
         poolId: termForm.poolId || null,
         status: termEditing?.status ?? "active",
       };
+      // A frozen term is edited by creating a NEW version with a new id, so
+      // replace the row being edited (not a row matching the returned id).
       setTerms((prev) =>
-        termEditing ? prev.map((t) => (t.id === saved.id ? saved : t)) : [...prev, saved]
+        termEditing ? prev.map((t) => (t.id === termEditing.id ? saved : t)) : [...prev, saved]
       );
       closeTermForm();
     });
@@ -359,7 +411,9 @@ export function ContractDetailScreen({
       header: "Allowance",
       render: (t) => (
         <span className="font-mono text-[12.5px]">
-          {t.allowance} {t.allowanceUnit}
+          {t.allowanceBasis === "RATE"
+            ? `${t.allowanceRate} MT/day`
+            : `${t.allowance} ${t.allowanceUnit}`}
         </span>
       ),
     },
@@ -405,6 +459,13 @@ export function ContractDetailScreen({
             Edit
           </SecondaryButton>
           <SecondaryButton
+            onClick={() => setRulesTermId(t.id)}
+            disabled={pending}
+            className="!px-2.5 !py-1 !text-[12px]"
+          >
+            Stoppage rules
+          </SecondaryButton>
+          <SecondaryButton
             onClick={() => toggleTermStatus(t)}
             disabled={pending}
             className="!px-2.5 !py-1 !text-[12px]"
@@ -437,7 +498,7 @@ export function ContractDetailScreen({
       </div>
 
       {/* ══ POOLS ══ */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <SectionHeading>Pools</SectionHeading>
         {!poolFormOpen && (
           <SecondaryButton onClick={openPoolCreate} disabled={pending}>
@@ -445,6 +506,12 @@ export function ContractDetailScreen({
           </SecondaryButton>
         )}
       </div>
+      <p className="text-[12.5px] mb-3" style={{ color: "var(--steel)" }}>
+        Only for <strong style={{ color: "var(--ink-soft)" }}>reversible</strong>{" "}
+        laytime, where load and discharge share one combined allowance. If this
+        charter party is non-reversible, skip pools and set the allowance on each
+        term below.
+      </p>
 
       {poolFormOpen && (
         <Card className="mb-4">
@@ -459,19 +526,34 @@ export function ContractDetailScreen({
                   onChange={(e) => updatePoolField("name", e.target.value)} />
               )}
             </Field>
-            <Field label="Total allowance" required error={poolFieldErrors.totalAllowance}>
+            <Field
+              label="Total allowance"
+              required
+              error={poolFieldErrors.totalAllowance}
+              description="The combined load + discharge time budget for this pool."
+            >
               {(a) => (
                 <TextInput {...a} value={poolForm.totalAllowance} disabled={pending}
                   onChange={(e) => updatePoolField("totalAllowance", e.target.value)} placeholder="e.g. 30" />
               )}
             </Field>
-            <Field label="Allowance unit" required error={poolFieldErrors.allowanceUnit}>
+            <Field
+              label="Allowance unit"
+              required
+              error={poolFieldErrors.allowanceUnit}
+              description="The unit that budget is measured in (e.g. days, hours)."
+            >
               {(a) => (
                 <TextInput {...a} value={poolForm.allowanceUnit} disabled={pending}
                   onChange={(e) => updatePoolField("allowanceUnit", e.target.value)} placeholder="e.g. days" />
               )}
             </Field>
-            <Field label="Settlement policy" required error={poolFieldErrors.settlementPolicy}>
+            <Field
+              label="Settlement policy"
+              required
+              error={poolFieldErrors.settlementPolicy}
+              description="How the pooled over/under time settles — which rate applies to the combined result."
+            >
               {(a) => (
                 <TextInput {...a} value={poolForm.settlementPolicy} disabled={pending}
                   onChange={(e) => updatePoolField("settlementPolicy", e.target.value)} />
@@ -532,7 +614,12 @@ export function ContractDetailScreen({
             <Field label="Function" required>
               {(a) => (
                 <select {...a} value={termForm.function} disabled={pending}
-                  onChange={(e) => updateTermField("function", e.target.value)}
+                  onChange={(e) => {
+                    updateTermField("function", e.target.value);
+                    // New terms follow the usual end for the operation; an
+                    // existing term keeps what was configured.
+                    if (!termEditing) updateTermField("laytimeEndEvent", defaultLaytimeEnd(e.target.value));
+                  }}
                   className="px-3 py-2 rounded-md text-[13px] w-full" style={selectStyle}>
                   <option value="LOAD">LOAD</option>
                   <option value="DISCHARGE">DISCHARGE</option>
@@ -582,42 +669,205 @@ export function ContractDetailScreen({
           </div>
 
           <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>ALLOWANCE &amp; RATES</p>
+          <Field
+            label="Laytime clause as written in the C/P"
+            description="Printed on the statement (e.g. 3000 MT PWWD FSHEX EIU). Display only — the calculation uses the fields below."
+          >
+            {(a) => (<TextInput {...a} value={termForm.laytimeClauseText} disabled={pending}
+              onChange={(e) => updateTermField("laytimeClauseText", e.target.value)} placeholder="optional" />)}
+          </Field>
           <div className="grid md:grid-cols-3 gap-x-6">
-            <Field label="Allowance" required>
-              {(a) => (<TextInput {...a} value={termForm.allowance} disabled={pending}
-                onChange={(e) => updateTermField("allowance", e.target.value)} placeholder="e.g. 5" />)}
+            <Field
+              label="Allowance basis"
+              required
+              description="Rate = quantity ÷ rate (e.g. 3000 MT/day). Fixed = a flat number of days/hours."
+            >
+              {(a) => (
+                <select
+                  {...a}
+                  value={termForm.allowanceBasis}
+                  disabled={pending}
+                  onChange={(e) => updateTermField("allowanceBasis", e.target.value)}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                  style={selectStyle}
+                >
+                  <option value="FIXED">Fixed</option>
+                  <option value="RATE">Rate (MT per day)</option>
+                </select>
+              )}
             </Field>
-            <Field label="Allowance unit" required>
-              {(a) => (<TextInput {...a} value={termForm.allowanceUnit} disabled={pending}
-                onChange={(e) => updateTermField("allowanceUnit", e.target.value)} placeholder="unit of allowance" />)}
-            </Field>
+            {termForm.allowanceBasis === "RATE" ? (
+              <Field
+                label="Rate (MT per day)"
+                required
+                description="Allowed time = actual cargo quantity ÷ this rate."
+              >
+                {(a) => (<TextInput {...a} value={termForm.allowanceRate} disabled={pending}
+                  onChange={(e) => updateTermField("allowanceRate", e.target.value)} placeholder="e.g. 3000" />)}
+              </Field>
+            ) : (
+              <>
+                <Field label="Allowance" required>
+                  {(a) => (<TextInput {...a} value={termForm.allowance} disabled={pending}
+                    onChange={(e) => updateTermField("allowance", e.target.value)} placeholder="e.g. 5" />)}
+                </Field>
+                <Field label="Allowance unit" required>
+                  {(a) => (
+                    <select {...a} value={termForm.allowanceUnit} disabled={pending}
+                      onChange={(e) => updateTermField("allowanceUnit", e.target.value)}
+                      className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                      {!isOneOf(ALLOWANCE_UNITS, termForm.allowanceUnit) && (
+                        <option value={termForm.allowanceUnit}>
+                          {termForm.allowanceUnit || "Select…"} (not recognised — choose one)
+                        </option>
+                      )}
+                      {ALLOWANCE_UNITS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+              </>
+            )}
             <Field label="Demurrage rate" required>
               {(a) => (<TextInput {...a} value={termForm.demurrageRate} disabled={pending}
                 onChange={(e) => updateTermField("demurrageRate", e.target.value)} placeholder="per day" />)}
+            </Field>
+            <Field
+              label="Once on demurrage, always on demurrage"
+              description="Yes = after laytime expires, excepted days, holidays and stoppages no longer stop the clock."
+            >
+              {(a) => (
+                <select
+                  {...a}
+                  value={termForm.onceOnDemurrage}
+                  disabled={pending}
+                  onChange={(e) => updateTermField("onceOnDemurrage", e.target.value)}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+                  style={selectStyle}
+                >
+                  <option value="NO">No</option>
+                  <option value="YES">Yes</option>
+                </select>
+              )}
             </Field>
             <Field label="Despatch rate">
               {(a) => (<TextInput {...a} value={termForm.despatchRate} disabled={pending}
                 onChange={(e) => updateTermField("despatchRate", e.target.value)} placeholder="optional" />)}
             </Field>
-            <Field label="Despatch basis">
-              {(a) => (<TextInput {...a} value={termForm.despatchBasis} disabled={pending}
-                onChange={(e) => updateTermField("despatchBasis", e.target.value)} placeholder="optional" />)}
+            <Field
+              label="Despatch basis"
+              description="WTS: despatch = laytime saved (allowed − used) × despatch rate. ATS is not calculated yet and is refused."
+            >
+              {(a) => (
+                <select {...a} value={termForm.despatchBasis} disabled={pending}
+                  onChange={(e) => updateTermField("despatchBasis", e.target.value)}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                  <option value="">None</option>
+                  {termForm.despatchBasis !== "" && !isOneOf(DESPATCH_BASES, termForm.despatchBasis) && (
+                    <option value={termForm.despatchBasis}>
+                      {termForm.despatchBasis} (not recognised — choose one)
+                    </option>
+                  )}
+                  {DESPATCH_BASES.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
             </Field>
           </div>
 
-          <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>TURN TIME &amp; COMMENCEMENT</p>
+          <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>COMMENCEMENT</p>
           <div className="grid md:grid-cols-3 gap-x-6">
-            <Field label="Turn time hours">
-              {(a) => (<TextInput {...a} value={termForm.turnTimeHours} disabled={pending}
-                onChange={(e) => updateTermField("turnTimeHours", e.target.value)} placeholder="optional" />)}
+            <Field label="Laytime commences from" required>
+              {(a) => (
+                <select {...a} value={termForm.commencementRule} disabled={pending}
+                  onChange={(e) => updateTermField("commencementRule", e.target.value)}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                  {!isOneOf(COMMENCEMENT_EVENTS, termForm.commencementRule) && (
+                    <option value={termForm.commencementRule}>
+                      {termForm.commencementRule || "Select…"} (not recognised — choose one)
+                    </option>
+                  )}
+                  {COMMENCEMENT_EVENTS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
             </Field>
-            <Field label="Turn time trigger">
-              {(a) => (<TextInput {...a} value={termForm.turnTimeTrigger} disabled={pending}
-                onChange={(e) => updateTermField("turnTimeTrigger", e.target.value)} placeholder="optional" />)}
+            <Field
+              label="Commencement time"
+              required
+              description={
+                termForm.commencementTimeRule === "MORNING_NOR_1400"
+                  ? "Amended GENCON 6(c): up to and including 12:00 → 14:00 same day; after 12:00 → 08:00 next working day (skips the rule set's excluded weekdays and holidays)."
+                  : undefined
+              }
+            >
+              {(a) => (
+                <select {...a} value={termForm.commencementTimeRule} disabled={pending}
+                  onChange={(e) => {
+                    updateTermField("commencementTimeRule", e.target.value);
+                    if (e.target.value !== "AT_EVENT") {
+                      updateTermField("turnTimeHours", "");
+                      updateTermField("turnTimeTrigger", "");
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                  {COMMENCEMENT_TIME_RULES.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
             </Field>
-            <Field label="Commencement rule" required>
-              {(a) => (<TextInput {...a} value={termForm.commencementRule} disabled={pending}
-                onChange={(e) => updateTermField("commencementRule", e.target.value)} placeholder="how laytime commences" />)}
+          </div>
+
+          {termForm.commencementTimeRule === "AT_EVENT" && (
+            <>
+              <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>TURN TIME</p>
+              <div className="grid md:grid-cols-3 gap-x-6">
+                <Field label="Turn time hours" description="Free time before laytime counts. Leave empty if none.">
+                  {(a) => (<TextInput {...a} value={termForm.turnTimeHours} disabled={pending}
+                    onChange={(e) => updateTermField("turnTimeHours", e.target.value)} placeholder="e.g. 6" />)}
+                </Field>
+                <Field label="Turn time starts from" required={termForm.turnTimeHours.trim() !== ""}>
+                  {(a) => (
+                    <select {...a} value={termForm.turnTimeTrigger}
+                      disabled={pending || termForm.turnTimeHours.trim() === ""}
+                      onChange={(e) => updateTermField("turnTimeTrigger", e.target.value)}
+                      className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                      <option value="">{termForm.turnTimeHours.trim() === "" ? "—" : "Select an event…"}</option>
+                      {termForm.turnTimeTrigger !== "" && !isOneOf(COMMENCEMENT_EVENTS, termForm.turnTimeTrigger) && (
+                        <option value={termForm.turnTimeTrigger}>
+                          {termForm.turnTimeTrigger} (not recognised — choose one)
+                        </option>
+                      )}
+                      {COMMENCEMENT_EVENTS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+              </div>
+            </>
+          )}
+
+          <p className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--steel)" }}>LAYTIME END</p>
+          <div className="grid md:grid-cols-2 gap-x-6">
+            <Field
+              label="Laytime ends at"
+              required
+              description="The usual end for port calls on this term. A single port call can be changed from its voyage page."
+            >
+              {(a) => (
+                <select {...a} value={termForm.laytimeEndEvent} disabled={pending}
+                  onChange={(e) => updateTermField("laytimeEndEvent", e.target.value)}
+                  className="w-full px-3 py-2 rounded text-[13px] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]" style={selectStyle}>
+                  {LAYTIME_END_EVENTS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
             </Field>
           </div>
 
@@ -645,6 +895,26 @@ export function ContractDetailScreen({
           </div>
         </Card>
       )}
+
+      {rulesTermId && (() => {
+        const t = terms.find((x) => x.id === rulesTermId);
+        if (!t) return null;
+        const scope = [
+          t.function === "LOAD" ? "Load" : "Discharge",
+          t.portId ? ports.find((p) => p.id === t.portId)?.name : "any port",
+          t.cargoId ? cargoes.find((c) => c.id === t.cargoId)?.name : "any cargo",
+        ].join(" · ");
+        return (
+          <TermStoppageRules
+            key={t.id}
+            termId={t.id}
+            termLabel={scope}
+            onceOnDemurrage={t.onceOnDemurrage}
+            reasons={stoppageReasons}
+            onClose={() => setRulesTermId(null)}
+          />
+        );
+      })()}
 
       <DataTable
         caption="Laytime terms for this contract"

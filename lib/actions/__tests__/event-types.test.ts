@@ -29,6 +29,7 @@ import {
   users,
   memberships,
   operationalEventTypes,
+  OPERATIONAL_EVENT_SEMANTICS,
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { hashPassword } from "@/lib/auth/password";
@@ -142,14 +143,16 @@ describe("listEventTypes", () => {
     if (!r.ok) return;
     // Every returned row belongs to org A: the ordinary row we made is
     // present, and org B's ordinary row (if any) is not. We assert on the
-    // ordinary row id we control plus the eight protected semantics.
+    // ordinary row id we control plus every protected engine semantic.
     const ids = r.data.map((row) => row.id);
     expect(ids).toContain(ordinaryId);
     const semantics = r.data
       .filter((row) => row.isProtected)
       .map((row) => row.systemSemantic);
     expect(semantics).toContain("NOR_TENDERED");
-    expect(semantics.length).toBe(8);
+    expect(semantics.length).toBe(OPERATIONAL_EVENT_SEMANTICS.length); // 10 since 2026-09-24
+    expect(semantics).toContain("LASHING_COMPLETED");
+    expect(semantics).toContain("DOCUMENTS_ON_BOARD");
   });
 });
 

@@ -1,0 +1,1 @@
+ALTER TABLE "contract_laytime_terms" ADD COLUMN "commencement_time_rule" text DEFAULT 'AT_EVENT' NOT NULL;

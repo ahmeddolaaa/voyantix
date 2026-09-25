@@ -63,10 +63,23 @@ export type ClassifiedInterval = {
   start: Date;
   end: Date;
   treatment: IntervalTreatment;
+  /**
+   * Authoritative contribution of this interval to counted time: a FRACTION in
+   * [0,1] of its elapsed duration (E4). Today only 0 (excluded) or 1 (counted)
+   * are produced — the engine is behaviourally binary — but the representation
+   * carries a fraction so partial-counting periods (e.g. half-rate weather or
+   * shifting time) can be expressed without reworking the output contract when
+   * a real charterparty defines them. `treatment` is the coarse view of this
+   * value (COUNTED when > 0). Accumulation uses `countedFraction`, not
+   * `treatment`.
+   */
+  countedFraction: number;
   /** Excluded by weekday/holiday; the EIU stage may revisit it. */
   eiuRelevant: boolean;
   /** Applied reason codes (provenance). Persistence shape is Phase 7's concern. */
   reasons: string[];
+  /** Set when a stoppage excluded this interval: the stoppage reason id. */
+  stoppageReasonId?: string;
 };
 
 /** Classifies one interval's preliminary treatment. */
@@ -82,11 +95,19 @@ export function classifyInterval(
     if (mode === undefined) {
       throw new CalculationRefused(
         "STOPPAGE_RULE_MISSING",
-        `Cannot calculate: the stoppage reason ${f.stoppageReasonId} has no contractual countability rule.`
+        `Cannot calculate: the stoppage reason ${f.stoppageReasonId} has no contractual countability rule.`,
+        f.stoppageReasonId
       );
     }
     if (mode === "AlwaysExcluded") {
-      return { ...base, treatment: "EXCLUDED", eiuRelevant: false, reasons: ["STOPPAGE_EXCLUDED"] };
+      return {
+        ...base,
+        treatment: "EXCLUDED",
+        countedFraction: 0,
+        eiuRelevant: false,
+        reasons: ["STOPPAGE_EXCLUDED"],
+        stoppageReasonId: f.stoppageReasonId,
+      };
     }
     if (mode === "CountsAgainstOwner") {
       // The balance effect of this mode is not defined by the baseline.
@@ -112,11 +133,11 @@ export function classifyInterval(
     const reasons: string[] = [];
     if (f.isExcludedWeekday) reasons.push("EXCLUDED_WEEKDAY");
     if (f.isHoliday) reasons.push("HOLIDAY");
-    return { ...base, treatment: "EXCLUDED", eiuRelevant: true, reasons };
+    return { ...base, treatment: "EXCLUDED", countedFraction: 0, eiuRelevant: true, reasons };
   }
 
   // 4. Nothing excludes it.
-  return { ...base, treatment: "COUNTED", eiuRelevant: false, reasons: [] };
+  return { ...base, treatment: "COUNTED", countedFraction: 1, eiuRelevant: false, reasons: [] };
 }
 
 /** Classifies each interval in order. */

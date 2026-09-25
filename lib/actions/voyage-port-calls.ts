@@ -16,6 +16,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { authorized, recordAudit } from "@/lib/auth/authorized";
 import { ForbiddenError } from "@/lib/auth/session";
 import { type ActionResult, ok, fail, withDatabaseErrors } from "./result";
+import { LAYTIME_END_EVENTS, isOneOf } from "@/lib/laytime/term-vocabulary";
 
 /**
  * VOYAGE PORT CALL — one visit to one port within a voyage (Phase 4).
@@ -49,6 +50,8 @@ export type VoyagePortCallRow = {
   status: PortCallStatus;
   effectiveTimezone: string;
   contractLaytimeTermId: string | null;
+  /** Per-vessel laytime-end override; null = the term's default. */
+  laytimeEndOverride: string | null;
 };
 
 async function portCallAction<T>(
@@ -152,6 +155,7 @@ export async function listVoyagePortCalls(
         status: voyagePortCalls.status,
         effectiveTimezone: voyagePortCalls.effectiveTimezone,
         contractLaytimeTermId: voyagePortCalls.contractLaytimeTermId,
+        laytimeEndOverride: voyagePortCalls.laytimeEndOverride,
       })
       .from(voyagePortCalls)
       .where(
@@ -623,6 +627,60 @@ export async function overrideContractLaytimeTerm(
       });
 
       return ok({ id: portCallId, contractLaytimeTermId: termId });
+    });
+  });
+}
+
+/**
+ * Sets (or clears, with null) the laytime-end override for ONE port call —
+ * e.g. the documents took very long to be signed on this vessel, so laytime
+ * ends at "documents on board" instead of the term's usual end. A commercial
+ * judgement that changes the claim: contract.write, audited with before/after.
+ * The caller recalculates afterwards; this action never computes.
+ */
+export async function setPortCallLaytimeEnd(
+  portCallId: string,
+  laytimeEndEvent: string | null
+): Promise<ActionResult<{ id: string; laytimeEndOverride: string | null }>> {
+  type Out = { id: string; laytimeEndOverride: string | null };
+
+  return portCallAction<Out>("contract.write", async (ctx) => {
+    const value = (laytimeEndEvent ?? "").trim() || null;
+    if (value !== null && !isOneOf(LAYTIME_END_EVENTS, value)) {
+      return fail<Out>("VALIDATION_ERROR", "Choose the event laytime ends at.");
+    }
+
+    const [pc] = await db
+      .select({ id: voyagePortCalls.id, before: voyagePortCalls.laytimeEndOverride })
+      .from(voyagePortCalls)
+      .where(
+        and(
+          eq(voyagePortCalls.id, portCallId),
+          eq(voyagePortCalls.organizationId, ctx.organizationId)
+        )
+      );
+    if (!pc) return fail<Out>("NOT_FOUND", "Port call not found.");
+
+    return withDatabaseErrors<Out>(async () => {
+      await db
+        .update(voyagePortCalls)
+        .set({ laytimeEndOverride: value, updatedAt: new Date() })
+        .where(
+          and(
+            eq(voyagePortCalls.id, portCallId),
+            eq(voyagePortCalls.organizationId, ctx.organizationId)
+          )
+        );
+
+      await recordAudit(ctx, {
+        entityType: "VoyagePortCall",
+        entityId: portCallId,
+        action: "set_laytime_end",
+        before: { laytimeEndOverride: pc.before },
+        after: { laytimeEndOverride: value },
+      });
+
+      return ok({ id: portCallId, laytimeEndOverride: value });
     });
   });
 }

@@ -50,6 +50,7 @@ export function applyEiu(
       return {
         ...iv,
         treatment: "COUNTED",
+        countedFraction: 1,
         reasons: [...iv.reasons, "COUNTED_WHILE_EXCLUDED_USED"],
       };
     }

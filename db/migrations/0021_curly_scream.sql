@@ -1,0 +1,1 @@
+ALTER TABLE "contract_laytime_terms" ADD COLUMN "laytime_clause_text" text;

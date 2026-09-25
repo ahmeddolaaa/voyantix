@@ -7,15 +7,14 @@
  *
  *   - EXCEEDED  → demurrage owed by the charterer. The rate is a per-running-
  *     day rate (consistent with the running-day allowance unit), pro-rated by
- *     the exceeded time: amount = (excessSeconds / 86400) × demurrageRate.
+ *     the exceeded time: days = excessSeconds / 86400 rounded to 5 decimals,
+ *     amount = days × demurrageRate rounded to cents (see rounding below).
  *   - EXACT     → no amount either way.
  *   - SAVED     → despatch MAY be owed to the charterer. Despatch is optional
- *     (PO3): with no despatchRate it is simply not configured, and nothing is
- *     owed. When a despatchRate IS configured, the saved-time MEASURE depends
- *     on despatchBasis, whose vocabulary is WITHHELD (B-level). This layer
- *     therefore REFUSES to compute a configured despatch rather than assuming
- *     "all time saved" or any other basis — exactly as the engine refuses an
- *     undefined semantic upstream.
+ *     (PO3): with no despatchRate nothing is owed. With a rate, the basis
+ *     decides the saved-time measure: WTS (working time saved) = the laytime
+ *     balance itself (evidence: test_2 sheet). ATS is refused (not evidenced);
+ *     a missing basis is refused.
  *
  * Pooled settlement rate selection (B7) is a different, withheld concern and
  * is not handled here.
@@ -28,6 +27,39 @@ import type { BalanceOutcome } from "./accumulate";
 
 const SECONDS_PER_DAY = 86400;
 
+/**
+ * Rounding convention — an ORGANIZATION setting (product owner, 2026-09-24),
+ * because the reference tools disagree:
+ *   DECIMALS_5 (default) — days rounded to 5 decimals, then × rate. Matches
+ *     the MV YUFIX reference calculation: "4.78434 days @ 6,000 / day = 28,706.04".
+ *   EXACT — the exact days × rate. Matches the manual test_2 sheet:
+ *     3.4769735 d × 4,375 = 15,211.76.
+ * Either way the amount is rounded to cents.
+ */
+export const SETTLEMENT_DAY_PRECISIONS = [
+  { value: "DECIMALS_5", label: "5 decimals" },
+  { value: "EXACT", label: "Exact (no rounding of days)" },
+] as const;
+
+export type SettlementDayPrecision = (typeof SETTLEMENT_DAY_PRECISIONS)[number]["value"];
+
+export function isSettlementDayPrecision(v: unknown): v is SettlementDayPrecision {
+  return SETTLEMENT_DAY_PRECISIONS.some((p) => p.value === v);
+}
+
+const SETTLEMENT_DAY_DECIMALS = 5;
+
+/** Half-up rounding to `decimals` places, robust to binary float noise. */
+export function roundHalfUp(value: number, decimals: number): number {
+  const f = 10 ** decimals;
+  return Math.round((value + Math.sign(value) * Number.EPSILON) * f) / f;
+}
+
+function settlementDays(seconds: number, precision: SettlementDayPrecision): number {
+  const days = seconds / SECONDS_PER_DAY;
+  return precision === "EXACT" ? days : roundHalfUp(days, SETTLEMENT_DAY_DECIMALS);
+}
+
 export type SettlementInput = {
   outcome: BalanceOutcome;
   /** allowedSeconds − usedSeconds; positive = saved, negative = exceeded. */
@@ -36,9 +68,10 @@ export type SettlementInput = {
   demurrageRate: number;
   /** Per-running-day despatch rate, or null when despatch is not configured. */
   despatchRate: number | null;
-  /** The despatch basis; its vocabulary is withheld, so any configured value
-   *  is refused rather than interpreted. */
+  /** "WTS" is settled; "ATS" and anything else are refused. */
   despatchBasis: string | null;
+  /** The organization's rounding convention; defaults to DECIMALS_5. */
+  dayPrecision?: SettlementDayPrecision;
 };
 
 export type Settlement =
@@ -61,13 +94,13 @@ export type Settlement =
 export function settleBalance(input: SettlementInput): Settlement {
   if (input.outcome === "EXCEEDED") {
     const exceededSeconds = -input.balanceSeconds; // balance is negative here
-    const days = exceededSeconds / SECONDS_PER_DAY;
+    const days = settlementDays(exceededSeconds, input.dayPrecision ?? "DECIMALS_5");
     return {
       kind: "demurrage",
       exceededSeconds,
       days,
       rate: input.demurrageRate,
-      amount: days * input.demurrageRate,
+      amount: roundHalfUp(days * input.demurrageRate, 2),
     };
   }
 
@@ -80,11 +113,34 @@ export function settleBalance(input: SettlementInput): Settlement {
     return { kind: "none", reason: "NO_DESPATCH_CONFIGURED" };
   }
 
-  // A despatch rate is configured, but the saved-time basis is withheld.
+  // WTS — working time saved: the saved time IS the laytime balance
+  // (allowed − used, both already in laytime terms). Evidence: test_2 sheet,
+  // 4.3103068 − 0.8333333 = 3.4769735 days saved × $4,375.
+  if (input.despatchBasis === "WTS") {
+    const savedSeconds = input.balanceSeconds; // balance is positive here
+    const days = settlementDays(savedSeconds, input.dayPrecision ?? "DECIMALS_5");
+    return {
+      kind: "despatch",
+      savedSeconds,
+      days,
+      rate: input.despatchRate,
+      amount: roundHalfUp(days * input.despatchRate, 2),
+    };
+  }
+
+  // ATS (all time saved) needs laytime projected past completion through the
+  // excepted periods — not evidenced yet. Any other/missing basis: withheld.
+  if (input.despatchBasis === "ATS") {
+    throw new CalculationRefused(
+      "DESPATCH_ATS_UNDEFINED",
+      "Cannot settle despatch: the all-time-saved (ATS) basis is not defined yet. " +
+        "Only working time saved (WTS) is calculated."
+    );
+  }
   throw new CalculationRefused(
     "DESPATCH_BASIS_WITHHELD",
     "Cannot settle despatch: a despatch rate is configured but the despatch " +
-      "basis (which saved time despatch is paid on) is not defined. Establish " +
-      "the despatch basis before settling."
+      "basis (which saved time despatch is paid on) is not set. Choose a " +
+      "despatch basis on the term."
   );
 }

@@ -1,22 +1,46 @@
 @import "tailwindcss";
 
+/*
+ * VOYANTIX design tokens — "Chart room" identity (F27, redesign 2026-09).
+ * Deep-sea ink, warm chart paper, brass accent; teal = laytime / on track,
+ * coral = demurrage / destructive, amber = warning, slate = stoppages.
+ * Legacy token NAMES are kept so every existing component restyles from here;
+ * their VALUES are remapped to the approved palette.
+ */
 :root {
-  --ink: #13262c;
-  --ink-soft: #3e5860;
-  --steel: #71868d;
-  --navy: #0e3438;
-  --navy-2: #0a2528;
-  --surface: #f6f4ee;
+  --ink: #1b2b31;       /* body text */
+  --ink-soft: #4a5b61;
+  --steel: #6b7a7f;     /* secondary text */
+  --navy: #0b2a33;      /* sidebar / brand primary (deep-sea ink) */
+  --navy-2: #06202a;
+  --surface: #f4f1ea;   /* global page canvas (chart paper) */
   --card: #ffffff;
-  --line: #e1ddd1;
-  --line-soft: #edeae0;
-  --brass: #b5651d;
-  --brass-soft: #f3e1cb;
-  --teal: #1d6e5c;
-  --teal-soft: #deefe9;
-  --rust: #b23a22;
-  --rust-soft: #f6e1d8;
-  --accent: #c1740f;
+  --bg-subtle: #fbfaf6; /* table headers / subtle sections */
+  --bg: #fbfaf6;
+  --line: #e4ded2;
+  --line-soft: #efeae0;
+
+  --brand: #0b2a33;     /* primary actions */
+  --brand-2: #1e6f69;   /* links, active/selected */
+  --gold: #b8862f;      /* brass accent */
+  --gold-soft: #f6ecd6;
+  --brass: #b8862f;
+  --brass-soft: #f6ecd6;
+  --brass-light: #e9c77f;
+
+  --teal: #1e6f69;      /* laytime / success */
+  --teal-soft: #ddeeea;
+  --rust: #b7791f;      /* warning */
+  --rust-soft: #fbefd5;
+  --danger: #c4472f;    /* demurrage / destructive */
+  --danger-soft: #f8e1da;
+  --coral: #c4472f;
+  --coral-soft: #f8e1da;
+  --slate: #51607e;     /* stoppages */
+  --slate-soft: #e3e7f0;
+  --accent: #b8862f;
+
+  --shadow-card: 0 1px 0 rgba(11, 42, 51, 0.03), 0 8px 24px -16px rgba(11, 42, 51, 0.18);
 }
 
 @theme inline {
@@ -27,23 +51,35 @@
   --color-navy-2: var(--navy-2);
   --color-surface: var(--surface);
   --color-card: var(--card);
+  --color-bg-subtle: var(--bg-subtle);
   --color-line: var(--line);
   --color-line-soft: var(--line-soft);
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
   --color-brass: var(--brass);
   --color-brass-soft: var(--brass-soft);
   --color-teal: var(--teal);
   --color-teal-soft: var(--teal-soft);
   --color-rust: var(--rust);
   --color-rust-soft: var(--rust-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
   --color-accent: var(--accent);
 
-  --font-display: "Fraunces", serif;
-  --font-sans: "IBM Plex Sans", sans-serif;
-  --font-mono: "IBM Plex Mono", monospace;
+  --color-coral: var(--coral);
+  --color-coral-soft: var(--coral-soft);
+  --color-slate: var(--slate);
+  --color-slate-soft: var(--slate-soft);
+
+  --font-display: "Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 }
 
 ::selection {
-  background: var(--brass-soft);
+  background: var(--gold-soft);
 }
 
 * {
@@ -68,11 +104,14 @@ h2,
 h3,
 .serif {
   font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
+/* Tabular figures for all operational/financial numbers. */
 .num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 a {
@@ -81,7 +120,7 @@ a {
 
 .vx-input {
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 10px;
   padding: 9px 11px;
   font-size: 13px;
   background: var(--card);
@@ -94,10 +133,52 @@ a {
   outline-offset: 1px;
 }
 
+/* Small live indicator: a dot that pulses, used where a clock is running. */
+@keyframes vx-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(30, 111, 105, 0.45); }
+  70% { box-shadow: 0 0 0 8px rgba(30, 111, 105, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(30, 111, 105, 0); }
+}
+.vx-live {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--teal);
+  animation: vx-pulse 1.8s infinite;
+}
+@keyframes vx-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.vx-rise { animation: vx-rise 0.5s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  .vx-live, .vx-rise { animation: none; }
+}
+
 /* Print: statement documents print as clean paper — no app chrome, white
    background, and elements marked .no-print (nav, action buttons) hidden. */
 @media print {
   .no-print { display: none !important; }
   body { background: #fff !important; }
   .print-document { box-shadow: none !important; border: none !important; }
+  /* Keep the teal/gold letterhead and settlement colours on paper — a laytime
+     statement is a commercial document, not a grey printout. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Loading placeholder shimmer (document reading, skeletons). */
+@keyframes vx-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.vx-shimmer {
+  background: linear-gradient(90deg, var(--line-soft) 0%, #fff 50%, var(--line-soft) 100%);
+  background-size: 800px 100%;
+  animation: vx-shimmer 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vx-shimmer { animation: none; }
 }

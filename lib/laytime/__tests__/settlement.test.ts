@@ -20,6 +20,73 @@ describe("settleBalance — demurrage on an exceeded balance", () => {
   });
 });
 
+describe("settleBalance — rounding convention (MV YUFIX reference)", () => {
+  it("rounds days to 5 decimals before applying the rate: 4.78434 × 6,000 = 28,706.04", () => {
+    // allowed 5723.738/4000 d, used 6d 05h 10m → lost 4.7843432777… d
+    const allowed = (5723.738 / 4000) * 86400;
+    const used = 6 * 86400 + 5 * 3600 + 10 * 60;
+    const s = settleBalance({
+      outcome: "EXCEEDED",
+      balanceSeconds: allowed - used,
+      demurrageRate: 6000,
+      despatchRate: null,
+      despatchBasis: null,
+    });
+    expect(s.kind).toBe("demurrage");
+    if (s.kind === "demurrage") {
+      expect(s.days).toBe(4.78434);
+      expect(s.amount).toBe(28706.04);
+    }
+  });
+
+  it("amount is rounded to cents", () => {
+    // 1 hour over at 1000/day: days 0.04167 → 41.67
+    const s = settleBalance({
+      outcome: "EXCEEDED",
+      balanceSeconds: -3600,
+      demurrageRate: 1000,
+      despatchRate: null,
+      despatchBasis: null,
+    });
+    if (s.kind === "demurrage") {
+      expect(s.days).toBe(0.04167);
+      expect(s.amount).toBe(41.67);
+    }
+  });
+});
+
+describe("settleBalance — EXACT day precision (org setting)", () => {
+  it("test_2: exact days × 4,375 = 15,211.76", () => {
+    const allowed = (10775.767 / 2500) * 86400;
+    const s = settleBalance({
+      outcome: "SAVED",
+      balanceSeconds: allowed - 20 * 3600,
+      demurrageRate: 8750,
+      despatchRate: 4375,
+      despatchBasis: "WTS",
+      dayPrecision: "EXACT",
+    });
+    if (s.kind !== "despatch") throw new Error("expected despatch");
+    expect(s.days).toBeCloseTo(3.4769735, 7);
+    expect(s.amount).toBe(15211.76);
+  });
+
+  it("MV YUFIX under EXACT gives 28,706.06 (vs 28,706.04 at 5 dp)", () => {
+    const allowed = (5723.738 / 4000) * 86400;
+    const used = 6 * 86400 + 5 * 3600 + 10 * 60;
+    const s = settleBalance({
+      outcome: "EXCEEDED",
+      balanceSeconds: allowed - used,
+      demurrageRate: 6000,
+      despatchRate: null,
+      despatchBasis: null,
+      dayPrecision: "EXACT",
+    });
+    if (s.kind !== "demurrage") throw new Error("expected demurrage");
+    expect(s.amount).toBe(28706.06);
+  });
+});
+
 describe("settleBalance — exact balance", () => {
   it("owes nothing", () => {
     const s = settleBalance({
@@ -47,7 +114,41 @@ describe("settleBalance — saved balance", () => {
     if (s.kind === "none") expect(s.reason).toBe("NO_DESPATCH_CONFIGURED");
   });
 
-  it("refuses a configured despatch because the basis is withheld", () => {
+  it("WTS: despatch = saved balance × despatch rate (test_2: 3.47697 d × 4,375)", () => {
+    const allowed = (10775.767 / 2500) * 86400;
+    const used = 20 * 3600;
+    const s = settleBalance({
+      outcome: "SAVED",
+      balanceSeconds: allowed - used,
+      demurrageRate: 8750,
+      despatchRate: 4375,
+      despatchBasis: "WTS",
+    });
+    expect(s.kind).toBe("despatch");
+    if (s.kind === "despatch") {
+      expect(s.savedSeconds).toBeCloseTo(allowed - used, 6);
+      expect(s.days).toBe(3.47697);
+      expect(s.amount).toBe(15211.74); // test_2 prints 15,211.76 on exact days — rounding open
+    }
+  });
+
+  it("refuses ATS rather than projecting time saved", () => {
+    try {
+      settleBalance({
+        outcome: "SAVED",
+        balanceSeconds: 2 * 86400,
+        demurrageRate: 1000,
+        despatchRate: 500,
+        despatchBasis: "ATS",
+      });
+      throw new Error("should have refused");
+    } catch (e) {
+      expect(e).toBeInstanceOf(CalculationRefused);
+      expect((e as CalculationRefused).code).toBe("DESPATCH_ATS_UNDEFINED");
+    }
+  });
+
+  it("refuses an unknown basis", () => {
     try {
       settleBalance({
         outcome: "SAVED",
@@ -58,7 +159,6 @@ describe("settleBalance — saved balance", () => {
       });
       throw new Error("should have refused");
     } catch (e) {
-      expect(e).toBeInstanceOf(CalculationRefused);
       expect((e as CalculationRefused).code).toBe("DESPATCH_BASIS_WITHHELD");
     }
   });

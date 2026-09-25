@@ -1,0 +1,154 @@
+{
+  "document": {
+    "kind": "SOF",
+    "vesselName": "MV MY FELLAS",
+    "imo": "9368766",
+    "port": "Alexandria Port",
+    "terminal": "Quay #18",
+    "operation": "LOAD",
+    "cargoDescription": "Prime Quality P&O Hot Rolled Steel Coils and Slitted Coils, Trim Edge",
+    "cargoQuantityMt": 3052.403,
+    "charterPartyDate": "2026-06-11",
+    "agent": "Misr Africa Shipping Co.",
+    "localTimeZone": "Africa/Cairo"
+  },
+  "events": [
+    {
+      "type": "ARRIVED",
+      "occurredLocal": "2026-06-21T21:25",
+      "sourceSnippet": "Vessel arrived at outer roads of Alexandria Port 21/06/2026 at 2125 LT",
+      "confidence": 0.9
+    },
+    {
+      "type": "NOR_TENDERED",
+      "occurredLocal": "2026-06-23T00:01",
+      "sourceSnippet": "Notice of readiness at Alexandria Port Quay #18 on 23/06/2026 at 0001 LT and time to count as per C/P",
+      "confidence": 0.98
+    },
+    {
+      "type": "BERTHED",
+      "occurredLocal": "2026-06-25T08:00",
+      "sourceSnippet": "All lines made fast alongside at Quay #18 (0800)",
+      "confidence": 0.97
+    },
+    {
+      "type": "OPERATION_COMMENCED",
+      "occurredLocal": "2026-06-25T15:50",
+      "sourceSnippet": "6. Loading commenced 25/06/2026 1550 LT",
+      "confidence": 0.98
+    },
+    {
+      "type": "OPERATION_COMPLETED",
+      "occurredLocal": "2026-06-28T00:05",
+      "sourceSnippet": "7. Loading completed 28/06/2026 0005 LT",
+      "confidence": 0.98
+    },
+    {
+      "type": "LASHING_COMPLETED",
+      "occurredLocal": "2026-06-28T00:10",
+      "sourceSnippet": "Lashing completed (0010)",
+      "confidence": 0.95
+    },
+    {
+      "type": "DOCUMENTS_SIGNED",
+      "occurredLocal": "2026-06-28T11:15",
+      "sourceSnippet": "Documents on board signed by Master (1115); 11. Cargo documents on board 28/06/2026 1115 LT",
+      "confidence": 0.96
+    },
+    {
+      "type": "DEPARTED",
+      "occurredLocal": "2026-06-28T13:35",
+      "sourceSnippet": "Vessel sailed from Alexandria Port (1335); 12. Vessel sailed 28/06/2026 1335 LT",
+      "confidence": 0.95
+    }
+  ],
+  "stoppages": [
+    {
+      "startLocal": "2026-06-25T21:55",
+      "endLocal": "2026-06-25T23:20",
+      "reasonText": "Loading suspended – labours break time",
+      "reasonCategory": "LABOUR_BREAK",
+      "sourceSnippet": "25/06 2155-2320 Loading suspended – labours break time",
+      "confidence": 0.95
+    },
+    {
+      "startLocal": "2026-06-25T20:00",
+      "endLocal": "2026-06-26T01:00",
+      "reasonText": "Alexandria port stopped all navigational movements due to navy forces instructions",
+      "reasonCategory": "PORT_CLOSURE",
+      "sourceSnippet": "General remarks: Alexandria port stopped all navigational movements due to navy forces instructions on 25/06/2026 from 2000 HRS LT till 26/06/2026 at 0100 HRS LT",
+      "confidence": 0.9
+    },
+    {
+      "startLocal": "2026-06-26T03:00",
+      "endLocal": "2026-06-26T09:10",
+      "reasonText": "Loading suspended – labours break time",
+      "reasonCategory": "LABOUR_BREAK",
+      "sourceSnippet": "26/06 0300-0910 Loading suspended – labours break time",
+      "confidence": 0.95
+    },
+    {
+      "startLocal": "2026-06-26T12:45",
+      "endLocal": "2026-06-26T14:00",
+      "reasonText": "Loading suspended – Friday prayer – labours break time",
+      "reasonCategory": "RELIGIOUS",
+      "sourceSnippet": "26/06 1245-1400 Loading suspended – Friday prayer – labours break time",
+      "confidence": 0.94
+    },
+    {
+      "startLocal": "2026-06-26T22:00",
+      "endLocal": "2026-06-26T23:20",
+      "reasonText": "Loading suspended – labours break time",
+      "reasonCategory": "LABOUR_BREAK",
+      "sourceSnippet": "26/06 2200-2320 Loading suspended – labours break time",
+      "confidence": 0.95
+    },
+    {
+      "startLocal": "2026-06-27T03:00",
+      "endLocal": "2026-06-27T09:15",
+      "reasonText": "Loading suspended – labours break time",
+      "reasonCategory": "LABOUR_BREAK",
+      "sourceSnippet": "27/06 0300-0915 Loading suspended – labours break time",
+      "confidence": 0.95
+    },
+    {
+      "startLocal": "2026-06-27T12:50",
+      "endLocal": "2026-06-27T14:00",
+      "reasonText": "Loading suspended – labours break time",
+      "reasonCategory": "LABOUR_BREAK",
+      "sourceSnippet": "27/06 1250-1400 Loading suspended – labours break time",
+      "confidence": 0.95
+    },
+    {
+      "startLocal": "2026-06-27T14:30",
+      "endLocal": "2026-06-27T21:30",
+      "reasonText": "Alexandria port stopped all navigational movements due to navy forces instructions",
+      "reasonCategory": "PORT_CLOSURE",
+      "sourceSnippet": "General remarks: Alexandria port stopped all navigational movements due to navy forces instructions on 27/06/2026 from 1430 HRS LT till 2130 HRS LT",
+      "confidence": 0.9
+    },
+    {
+      "startLocal": "2026-06-27T21:50",
+      "endLocal": "2026-06-27T23:20",
+      "reasonText": "Loading suspended – labours break time",
+      "reasonCategory": "LABOUR_BREAK",
+      "sourceSnippet": "27/06 2150-2320 Loading suspended – labours break time",
+      "confidence": 0.95
+    }
+  ],
+  "rawRemarks": [
+    "Fridays and Saturdays are official weekends in Egypt.",
+    "Loading operations were performed by using 1 gang and 1 (One) Shore Crane.",
+    "The weight of the cargo is according to the Mill's Scale.",
+    "Cargo loaded by Shippers as per Bill of Lading and Cargo Manifest in accordance with the terms, conditions and exceptions of the governing Charter Party.",
+    "Bills of Lading weight/quantity: 3052.403 MT / 528 Packages.",
+    "Owners/Disponent Owners: Artisan Shipping SA.",
+    "Informational (not laytime events): pilot on board 0640, first line ashore 0750, free pratique 0815, opening hatches 1000, holds cleanliness inspection accepted 1015, waiting for cargo trucks, loading preparations, dunnage & forklifts."
+  ],
+  "conflicts": [
+    "Arrival time differs between documents: NOR letter states 21:00 LT, SOF field 17 and daily working state 21:25 LT (2125). Confirm which governs.",
+    "NOR acceptance time is not stated on the SOF; the laytime calculation uses NOR accepted 23/06 08:00. Confirm the acceptance basis from the C/P."
+  ],
+  "extractionModel": "vision-poc/manual-reference",
+  "extractedAt": "2026-09-23T11:30:00Z"
+}

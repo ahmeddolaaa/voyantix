@@ -50,7 +50,13 @@ export type ActionErrorCode =
   | "MULTIPLE_CARGO_CONTEXTS"
   /** PO11 / F15: several terms apply and none is strictly more specific.
    *  The stored term is left untouched and nothing is calculated. */
-  | "AMBIGUOUS_TERM";
+  | "AMBIGUOUS_TERM"
+  /** A server-side integration (e.g. the document reader) is not set up. */
+  | "NOT_CONFIGURED"
+  /** An external service refused for usage limits; retry later. */
+  | "RATE_LIMITED"
+  /** An external service could not produce a usable result. */
+  | "EXTERNAL_FAILED";
 
 export type ActionResult<T> =
   | { ok: true; data: T }

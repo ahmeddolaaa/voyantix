@@ -14,10 +14,14 @@
  */
 export class CalculationRefused extends Error {
   readonly code: string;
+  /** Optional id of the thing refused (e.g. a stoppage reason id), so a
+   *  caller that knows names can reword the message for people. */
+  readonly subject?: string;
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, subject?: string) {
     super(message);
     this.name = "CalculationRefused";
     this.code = code;
+    this.subject = subject;
   }
 }

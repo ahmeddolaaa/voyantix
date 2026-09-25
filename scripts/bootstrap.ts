@@ -16,18 +16,16 @@ import {
 } from "../db/schema";
 import { hashPassword } from "../lib/auth/password";
 import { seedProtectedEventTypes } from "../lib/master-data/seed-event-types";
-import { eq } from "drizzle-orm";
 
 async function main() {
   const password = process.env.SEED_PASSWORD ?? "voyantix";
 
-  const existing = await db
-    .select()
-    .from(organizations)
-    .where(eq(organizations.slug, "demo-shipping"));
-
-  if (existing.length > 0) {
-    console.log("Bootstrap organization already exists — nothing to do.");
+  // Only a truly EMPTY database is bootstrapped. Production runs this on every
+  // deploy; once any company exists (e.g. the Bulk Trading demo seed) it must
+  // not add a second company with a well-known login.
+  const anyOrg = await db.select({ id: organizations.id }).from(organizations).limit(1);
+  if (anyOrg.length > 0) {
+    console.log("Database already has an organization — bootstrap skipped.");
     await pool.end();
     return;
   }

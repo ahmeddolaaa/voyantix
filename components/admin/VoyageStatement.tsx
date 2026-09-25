@@ -25,10 +25,10 @@ import { formatInstant, formatAmount } from "@/lib/format";
  * settlement-side ledger; they never touch the engine's balances.
  */
 
-function scopeSettlement(s: StatementScope): { tone: "rust" | "teal" | "neutral"; text: string } {
+function scopeSettlement(s: StatementScope): { tone: "coral" | "teal" | "neutral"; text: string } {
   switch (s.settlementKind) {
     case "demurrage":
-      return { tone: "rust", text: `Demurrage ${s.amount === null ? "" : formatAmount(s.amount)}` };
+      return { tone: "coral", text: `Demurrage ${s.amount === null ? "" : formatAmount(s.amount)}` };
     case "despatch":
       return { tone: "teal", text: `Despatch ${s.amount === null ? "" : formatAmount(s.amount)}` };
     case "none":
@@ -44,10 +44,13 @@ export function VoyageStatement({
   voyageId,
   timeZone,
   portCallLabels,
+  refreshKey = 0,
 }: {
   voyageId: string;
   timeZone: string;
   portCallLabels: Record<string, string>;
+  /** Bumped when a port call is recalculated, so "out of date" shows at once. */
+  refreshKey?: number;
 }) {
   const [stmt, setStmt] = useState<StatementView | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -69,7 +72,7 @@ export function VoyageStatement({
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   function build() {
     setError(null);
@@ -134,13 +137,13 @@ export function VoyageStatement({
             <Link
               href={`/admin/voyages/${voyageId}/statement`}
               className="text-[12px] no-underline"
-              style={{ color: "var(--brass)" }}
+              style={{ color: "var(--teal)" }}
             >
               View as document →
             </Link>
           )}
           {isDraft && (
-            <SubmitButton onClick={finalize} pending={pending}>
+            <SubmitButton onClick={finalize} pending={pending} disabled={stmt?.outdated === true}>
               Finalize
             </SubmitButton>
           )}
@@ -162,6 +165,16 @@ export function VoyageStatement({
 
       {stmt && (
         <>
+          {stmt.outdated && (
+            <div
+              role="status"
+              className="rounded-md px-3 py-2 mb-3 text-[12.5px]"
+              style={{ background: "var(--rust-soft)", border: "1px solid var(--rust)", color: "var(--ink)" }}
+            >
+              <strong>Out of date.</strong> A port call was recalculated after this draft was built, so the
+              figures below are the old ones. Press <strong>Rebuild draft</strong> to update them.
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-[13px] mb-3">
             <span>
               <span style={muted}>Demurrage </span>

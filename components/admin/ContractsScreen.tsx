@@ -160,7 +160,7 @@ export function ContractsScreen({
         <Link
           href={`/admin/contracts/${r.id}`}
           className="hover:underline"
-          style={{ fontWeight: 500, color: "var(--brass)" }}
+          style={{ fontWeight: 500, color: "var(--teal)" }}
         >
           {r.reference}
         </Link>

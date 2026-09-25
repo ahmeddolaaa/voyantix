@@ -37,6 +37,8 @@ export type ContractStoppageRuleRow = {
   termId: string;
   stoppageReasonId: string;
   countability: StoppageCountability;
+  /** OODAOD exception: still interrupts time once on demurrage. */
+  excludedOnDemurrage: boolean;
 };
 
 async function ruleAction<T>(
@@ -80,6 +82,7 @@ export async function listStoppageRules(
         termId: contractStoppageRules.termId,
         stoppageReasonId: contractStoppageRules.stoppageReasonId,
         countability: contractStoppageRules.countability,
+        excludedOnDemurrage: contractStoppageRules.excludedOnDemurrage,
       })
       .from(contractStoppageRules)
       .where(
@@ -96,6 +99,8 @@ export async function listStoppageRules(
 export type SetStoppageRuleInput = {
   stoppageReasonId: string;
   countability: StoppageCountability;
+  /** Only meaningful for AlwaysExcluded; forced false otherwise. */
+  excludedOnDemurrage?: boolean;
 };
 
 /**
@@ -118,6 +123,9 @@ export async function setStoppageRule(
       return fail<{ id: string }>("NOT_FOUND", "Laytime term not found.");
     }
 
+    const excludedOnDemurrage =
+      input.countability === "AlwaysExcluded" && input.excludedOnDemurrage === true;
+
     return withDatabaseErrors<{ id: string }>(async () => {
       const [row] = await db
         .insert(contractStoppageRules)
@@ -126,10 +134,11 @@ export async function setStoppageRule(
           termId,
           stoppageReasonId: reasonId,
           countability: input.countability,
+          excludedOnDemurrage,
         })
         .onConflictDoUpdate({
           target: [contractStoppageRules.termId, contractStoppageRules.stoppageReasonId],
-          set: { countability: input.countability, updatedAt: new Date() },
+          set: { countability: input.countability, excludedOnDemurrage, updatedAt: new Date() },
         })
         .returning({ id: contractStoppageRules.id });
 
@@ -137,7 +146,12 @@ export async function setStoppageRule(
         entityType: "ContractStoppageRule",
         entityId: row.id,
         action: "set",
-        after: { termId, stoppageReasonId: reasonId, countability: input.countability },
+        after: {
+          termId,
+          stoppageReasonId: reasonId,
+          countability: input.countability,
+          excludedOnDemurrage,
+        },
       });
       return ok({ id: row.id });
     });

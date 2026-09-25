@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { cookies } from "next/headers";
 import { db } from "@/db/client";
 import { sessions, memberships, users, organizations } from "@/db/schema";
@@ -88,7 +89,21 @@ export async function resolveTenantContext(
 }
 
 /** Reads the session cookie and resolves context. Returns null if absent. */
+/**
+ * Session token for code running OUTSIDE a web request (maintenance and
+ * seed scripts). Only in-process code can set it, via runWithSession; no
+ * request path does. The token is still a real session row and is resolved
+ * exactly like a cookie, so membership and role are re-verified per call.
+ */
+const scriptSession = new AsyncLocalStorage<string>();
+
+export function runWithSession<T>(token: string, fn: () => Promise<T>): Promise<T> {
+  return scriptSession.run(token, fn);
+}
+
 export async function getTenantContext(): Promise<TenantContext | null> {
+  const scripted = scriptSession.getStore();
+  if (scripted !== undefined) return resolveTenantContext(scripted);
   const store = await cookies();
   return resolveTenantContext(store.get(SESSION_COOKIE)?.value);
 }

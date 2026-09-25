@@ -114,7 +114,7 @@ function validTerm(overrides: Record<string, unknown> = {}) {
     allowance: "10",
     allowanceUnit: "days",
     demurrageRate: "5000",
-    commencementRule: "on_nor_accepted",
+    commencementRule: "NOR_ACCEPTED",
     ruleSetVersionId: versionA,
     ...overrides,
   };
@@ -210,6 +210,69 @@ describe("createContractLaytimeTerm", () => {
         .where(eq(contractLaytimeTerms.id, r.data.id));
       expect(row.poolId).toBe(poolA);
     }
+  });
+});
+
+describe("createContractLaytimeTerm — bounded vocabulary", () => {
+  const bad = async (over: Record<string, unknown>) => {
+    currentToken = adminToken;
+    const r = await createContractLaytimeTerm(contractA, validTerm(over));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.code).toBe("VALIDATION_ERROR");
+  };
+
+  it("rejects a commencement event the engine does not know", () =>
+    bad({ commencementRule: "on_nor_accepted" }));
+  it("rejects an allowance unit other than days/hours", () =>
+    bad({ allowanceUnit: "weather working days" }));
+  it("rejects a turn time with no recognised trigger", () =>
+    bad({ turnTimeHours: "6", turnTimeTrigger: "whenever" }));
+  it("rejects the 14:00 rule combined with turn time", () =>
+    bad({ commencementTimeRule: "MORNING_NOR_1400", turnTimeHours: "6", turnTimeTrigger: "NOR_TENDERED" }));
+  it("rejects an unknown despatch basis", () => bad({ despatchBasis: "whatever" }));
+  it("rejects an unknown laytime end event", () => bad({ laytimeEndEvent: "SAILED" }));
+  it("rejects a C/P clause longer than 200 characters", () => bad({ laytimeClauseText: "x".repeat(201) }));
+
+  it("stores the C/P laytime clause as written (display only)", async () => {
+    currentToken = adminToken;
+    const r = await createContractLaytimeTerm(contractA, validTerm({ laytimeClauseText: "  3000 MT PWWD FSHEX EIU " }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const [row] = await db
+      .select({ c: contractLaytimeTerms.laytimeClauseText })
+      .from(contractLaytimeTerms)
+      .where(eq(contractLaytimeTerms.id, r.data.id));
+    expect(row.c).toBe("3000 MT PWWD FSHEX EIU");
+  });
+
+  it("stores the laytime end event; defaults to OPS_COMPLETED", async () => {
+    currentToken = adminToken;
+    const withEnd = await createContractLaytimeTerm(contractA, validTerm({ laytimeEndEvent: "LASHING_COMPLETED" }));
+    const noEnd = await createContractLaytimeTerm(contractA, validTerm({}));
+    expect(withEnd.ok && noEnd.ok).toBe(true);
+    if (!withEnd.ok || !noEnd.ok) return;
+    const rows = await db
+      .select({ id: contractLaytimeTerms.id, e: contractLaytimeTerms.laytimeEndEvent })
+      .from(contractLaytimeTerms)
+      .where(eq(contractLaytimeTerms.contractId, contractA));
+    expect(rows.find((r) => r.id === withEnd.data.id)?.e).toBe("LASHING_COMPLETED");
+    expect(rows.find((r) => r.id === noEnd.data.id)?.e).toBe("OPS_COMPLETED");
+  });
+
+  it("accepts NOR tendered + the 14:00 rule and stores it", async () => {
+    currentToken = adminToken;
+    const r = await createContractLaytimeTerm(
+      contractA,
+      validTerm({ commencementRule: "NOR_TENDERED", commencementTimeRule: "MORNING_NOR_1400", despatchBasis: "WTS" })
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const [row] = await db
+      .select({ c: contractLaytimeTerms.commencementTimeRule, t: contractLaytimeTerms.turnTimeTrigger })
+      .from(contractLaytimeTerms)
+      .where(eq(contractLaytimeTerms.id, r.data.id));
+    expect(row.c).toBe("MORNING_NOR_1400");
+    expect(row.t).toBeNull();
   });
 });
 

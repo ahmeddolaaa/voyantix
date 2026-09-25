@@ -7,7 +7,10 @@
  *     turnTimeTrigger + turnTimeHours; when no turn time is configured, it
  *     begins at the commencementRule event. (commencementRule is used only in
  *     the no-turn-time path.)
- *   - Window END: counting stops at the OPS_COMPLETED event.
+ *   - Window END: counting stops at the term's laytime-end event
+ *     (OPS_COMPLETED by default; LASHING_COMPLETED or DOCUMENTS_ON_BOARD when
+ *     configured — 2026-09-24). A missing end event is a refusal, never a
+ *     fallback to another event.
  *
  * The turn-time interval itself sits BEFORE the countable window (the grace
  * period), so it is returned for provenance but is not part of the counted
@@ -19,8 +22,12 @@
 
 import {
   determineCommencement,
+  applyCommencementTimeRule,
   resolveRequiredEvent,
   type EngineEvent,
+  type CommencementTimeRule,
+  type CommencementCalendar,
+  type LaytimeEndEvent,
 } from "./commencement";
 import { resolveTurnTime, type TurnTime } from "./turn-time";
 import { CalculationRefused } from "./refuse";
@@ -42,25 +49,72 @@ export type CandidateWindow = {
  * Derives the countable window from the term's commencement/turn-time config
  * and the port call's live events.
  */
+/**
+ * Where counting begins, from the term's commencement/turn-time config. Shared
+ * by the final window and the provisional running view so both agree on the
+ * start; only the END differs between them.
+ */
+export function deriveCommencementStart(
+  events: EngineEvent[],
+  commencementRule: string,
+  turnTime: TurnTime | null,
+  timeZone?: string,
+  commencementTimeRule: CommencementTimeRule = "AT_EVENT",
+  /** The rule set's calendar; needed when a time rule resolves a "next working day". */
+  calendar?: CommencementCalendar
+): Date {
+  if (commencementTimeRule !== "AT_EVENT") {
+    // A time-of-day commencement rule replaces both the raw event instant and
+    // any turn time — it is itself the grace mechanism that decides when
+    // counting begins from the basis event.
+    if (timeZone === undefined) {
+      throw new CalculationRefused(
+        "COMMENCEMENT_RULE_NEEDS_ZONE",
+        "Cannot calculate: a time-of-day commencement rule requires the port call timezone."
+      );
+    }
+    const basis = determineCommencement(events, commencementRule);
+    return applyCommencementTimeRule(basis, commencementTimeRule, timeZone, calendar);
+  }
+  if (turnTime !== null) {
+    // Counting begins at the end of turn time (trigger + duration).
+    return turnTime.endsAt;
+  }
+  // No turn time: counting begins at the commencement basis event.
+  return determineCommencement(events, commencementRule);
+}
+
 export function resolveCandidateWindow(
   events: EngineEvent[],
   commencementRule: string,
   turnTimeHours: number | null,
-  turnTimeTrigger: string | null
+  turnTimeTrigger: string | null,
+  timeZone?: string,
+  commencementTimeRule: CommencementTimeRule = "AT_EVENT",
+  /** Provisional running view: count up to this instant instead of the
+      OPS_COMPLETED event (used before operations complete). */
+  windowEndOverride?: Date,
+  /** The rule set's calendar; needed when a time rule resolves a "next working day". */
+  calendar?: CommencementCalendar,
+  /** Which event ends laytime (default OPS_COMPLETED). */
+  endEvent: LaytimeEndEvent = "OPS_COMPLETED"
 ): CandidateWindow {
   const turnTime = resolveTurnTime(events, turnTimeHours, turnTimeTrigger);
 
-  let start: Date;
-  if (turnTime !== null) {
-    // Counting begins at the end of turn time (trigger + duration).
-    start = turnTime.endsAt;
-  } else {
-    // No turn time: counting begins at the commencement basis event.
-    start = determineCommencement(events, commencementRule);
-  }
+  const start = deriveCommencementStart(
+    events,
+    commencementRule,
+    turnTime,
+    timeZone,
+    commencementTimeRule,
+    calendar
+  );
 
-  // Counting stops at operations complete.
-  const end = resolveRequiredEvent(events, "OPS_COMPLETED", "WINDOW_END");
+  // Counting stops at operations complete — or at the provisional as-of instant.
+  const end =
+    windowEndOverride !== undefined
+      ? windowEndOverride
+      : resolveRequiredEvent(events, endEvent, "WINDOW_END");
 
   if (start.getTime() >= end.getTime()) {
     throw new CalculationRefused(
@@ -77,6 +131,10 @@ export type CalcFromEventsInput = Omit<PortCallCalcInput, "window"> & {
   commencementRule: string;
   turnTimeHours: number | null;
   turnTimeTrigger: string | null;
+  /** Time-of-day commencement rule; defaults to AT_EVENT (prior behaviour). */
+  commencementTimeRule?: CommencementTimeRule;
+  /** Which event ends laytime; defaults to OPS_COMPLETED (prior behaviour). */
+  laytimeEndEvent?: LaytimeEndEvent;
 };
 
 export type CalcFromEventsResult = PortCallCalcResult & {
@@ -96,7 +154,12 @@ export function calculateFromEvents(
     input.events,
     input.commencementRule,
     input.turnTimeHours,
-    input.turnTimeTrigger
+    input.turnTimeTrigger,
+    input.timeZone,
+    input.commencementTimeRule ?? "AT_EVENT",
+    undefined,
+    { excludedWeekdays: input.excludedWeekdays, holidayDates: input.holidayDates },
+    input.laytimeEndEvent ?? "OPS_COMPLETED"
   );
 
   const result = calculatePortCall({

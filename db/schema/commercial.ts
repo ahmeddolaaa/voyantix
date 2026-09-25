@@ -257,14 +257,43 @@ export const contractLaytimeTerms = pgTable(
     cargoId: uuid("cargo_id"),
 
     // commercial values
+    //
+    // allowanceBasis decides how the allowed laytime is obtained:
+    //   FIXED — the allowance value below, in allowanceUnit (hours/days).
+    //   RATE  — computed by the engine as actual cargo quantity ÷ allowanceRate
+    //           (a MT-per-day rate, e.g. "3000 MT PWWD"). The weather/SHEX part
+    //           of such a rate is the counting axis, not the allowance number.
+    // The `allowance`/`allowanceUnit` columns stay required so FIXED terms and
+    // all existing rows are unchanged; a RATE term sets them to a neutral 0.
+    allowanceBasis: text("allowance_basis").notNull().default("FIXED"),
     allowance: numeric("allowance").notNull(),
     allowanceUnit: text("allowance_unit").notNull(),
+    /** MT per day, used only when allowanceBasis = RATE. */
+    allowanceRate: numeric("allowance_rate"),
     demurrageRate: numeric("demurrage_rate").notNull(),
     despatchRate: numeric("despatch_rate"),
     despatchBasis: text("despatch_basis"),
     turnTimeHours: numeric("turn_time_hours"),
     turnTimeTrigger: text("turn_time_trigger"),
     commencementRule: text("commencement_rule").notNull(),
+    // How the commencement event maps to when counting starts:
+    //   AT_EVENT          — at the event instant (or after turn time, if set)
+    //   MORNING_NOR_1400  — amended GENCON 6(c): event up to and including
+    //                       12:00 local → 14:00 same day; after 12:00 → 08:00
+    //                       local on the next working day (rule-set calendar)
+    commencementTimeRule: text("commencement_time_rule").notNull().default("AT_EVENT"),
+    // "Once on demurrage, always on demurrage": after laytime expires, the
+    // laytime exceptions (excluded days, holidays, stoppages) stop applying and
+    // all subsequent time counts. Default off = prior behaviour.
+    onceOnDemurrage: boolean("once_on_demurrage").notNull().default(false),
+    // Which recorded event ends laytime by default for port calls on this
+    // term: OPS_COMPLETED | LASHING_COMPLETED | DOCUMENTS_ON_BOARD. A port
+    // call may override it (voyage_port_calls.laytime_end_override).
+    laytimeEndEvent: text("laytime_end_event").notNull().default("OPS_COMPLETED"),
+    // The laytime clause as written in the charter party, e.g. "3000 MT PWWD
+    // FSHEX EIU". DISPLAY ONLY (printed on the statement); the engine never
+    // reads it — the structured fields above are the calculation's inputs.
+    laytimeClauseText: text("laytime_clause_text"),
 
     // references
     ruleSetVersionId: uuid("rule_set_version_id").notNull(),
@@ -358,6 +387,10 @@ export const contractStoppageRules = pgTable(
     termId: uuid("term_id").notNull(),
     stoppageReasonId: uuid("stoppage_reason_id").notNull(),
     countability: stoppageCountabilityEnum("countability").notNull(),
+    // OODAOD exception: when the term is "once on demurrage, always on
+    // demurrage", an AlwaysExcluded stoppage with this flag still interrupts
+    // time after laytime expires (e.g. breakdown of the vessel). Default off.
+    excludedOnDemurrage: boolean("excluded_on_demurrage").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

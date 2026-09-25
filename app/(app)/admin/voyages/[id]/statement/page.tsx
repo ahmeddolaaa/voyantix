@@ -5,13 +5,17 @@ import { listVoyagePortCalls } from "@/lib/actions/voyage-port-calls";
 import { listPorts } from "@/lib/actions/ports";
 import { getStatement } from "@/lib/actions/laytime-statements";
 import { getPortCallCalculation } from "@/lib/actions/laytime-calculations";
+import { getPortCallSheet } from "@/lib/actions/port-call-sheet";
 import {
   StatementDocument,
   type StatementDoc,
   type DocScope,
+  type DocSheet,
 } from "@/components/admin/StatementDocument";
 import { EmptyState } from "@/components/ui";
 import Link from "next/link";
+import { getTenantContext } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/permissions";
 
 /**
  * Printable statement document for a voyage. A server component: it gathers
@@ -45,7 +49,7 @@ export default async function StatementPage({
   if (!statement.data) {
     return (
       <div className="max-w-4xl mx-auto px-8 py-8">
-        <Link href={`/admin/voyages/${id}`} className="text-[13px] no-underline" style={{ color: "var(--brass)" }}>
+        <Link href={`/admin/voyages/${id}`} className="text-[13px] no-underline" style={{ color: "var(--teal)" }}>
           ← Back to voyage
         </Link>
         <div className="mt-4">
@@ -65,6 +69,7 @@ export default async function StatementPage({
   );
 
   const scopes: DocScope[] = [];
+  const sheets: DocSheet[] = [];
   for (const s of statement.data.scopes) {
     const call = s.portCallId ? callById.get(s.portCallId) : undefined;
     const label = call ? `${call.sequence} · ${portName(call.portId)}` : "Pool";
@@ -84,6 +89,21 @@ export default async function StatementPage({
       }
     }
 
+    // The detailed sheet, only when it is the very calculation this statement
+    // line was built from — never a later recalculation under an older figure.
+    if (s.portCallId && (s.settlementKind === "demurrage" || s.settlementKind === "despatch" || s.settlementKind === "none")) {
+      const sheet = await getPortCallSheet(s.portCallId);
+      if (sheet.ok && sheet.data && sheet.data.calculationId === s.calculationId) {
+        sheets.push({ title: label, sheet: sheet.data, note: null });
+      } else {
+        sheets.push({
+          title: label,
+          sheet: null,
+          note: "The detailed time-sheet is not shown: this port call was recalculated after the statement was built. Rebuild the draft to include it.",
+        });
+      }
+    }
+
     scopes.push({
       label,
       timeZone,
@@ -99,8 +119,16 @@ export default async function StatementPage({
     });
   }
 
+  const ctx = await getTenantContext();
+  const d = statement.data.finalizedAt ?? new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
   const doc: StatementDoc = {
     voyageId: id,
+    issuer: ctx?.organizationName ?? "",
+    preparedOn: `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`,
+    outdated: statement.data.outdated,
+    unresolvedCount: statement.data.unresolvedCount,
+    canFinalize: ctx ? hasPermission(ctx, "statement.finalize") : false,
     voyageReference: voyage.data.voyageReference,
     vesselName: voyage.data.vesselName,
     counterparty: contract && contract.ok ? contract.data.counterparty : null,
@@ -113,6 +141,7 @@ export default async function StatementPage({
     netClaim: statement.data.netClaim,
     adjustments: statement.data.adjustments.map((a) => ({ amount: a.amount, reason: a.reason })),
     scopes,
+    sheets,
   };
 
   return <StatementDocument doc={doc} />;

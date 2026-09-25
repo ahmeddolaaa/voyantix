@@ -147,7 +147,7 @@ export function HolidayCalendarsScreen({
         <Link
           href={`/admin/holiday-calendars/${c.id}`}
           className="font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brass)] rounded"
-          style={{ color: "var(--brass)" }}
+          style={{ color: "var(--teal)" }}
         >
           {c.name}
         </Link>

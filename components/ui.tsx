@@ -8,7 +8,7 @@ import { ButtonHTMLAttributes, ReactNode } from "react";
  * only feedback for a slow save is silence and they click again.
  */
 const buttonBase =
-  "px-4 py-2 rounded-md text-[13px] font-medium transition-colors " +
+  "inline-flex items-center justify-center gap-2 h-10 px-4 rounded-[10px] text-[13.5px] font-medium transition-colors " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 " +
   "focus-visible:ring-[var(--brass)] focus-visible:ring-offset-[var(--surface)] " +
   "disabled:cursor-not-allowed";
@@ -25,7 +25,7 @@ export function PrimaryButton(
     <button
       {...rest}
       className={`${buttonBase} text-white ${className}`}
-      style={{ background: "var(--brass)", ...disabledStyle(rest.disabled), ...style }}
+      style={{ background: "var(--brand)", ...disabledStyle(rest.disabled), ...style }}
     />
   );
 }
@@ -55,7 +55,7 @@ export function DangerButton(props: ButtonHTMLAttributes<HTMLButtonElement>) {
     <button
       {...rest}
       className={`${buttonBase} text-white ${className}`}
-      style={{ background: "var(--rust)", ...disabledStyle(rest.disabled), ...style }}
+      style={{ background: "var(--danger)", ...disabledStyle(rest.disabled), ...style }}
     />
   );
 }
@@ -69,11 +69,11 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-lg p-5 ${className}`}
+      className={`rounded-[14px] p-5 ${className}`}
       style={{
         background: "var(--card)",
         border: "1px solid var(--line)",
-        boxShadow: "0 1px 2px rgba(19,38,44,.05), 0 10px 28px rgba(19,38,44,.07)",
+        boxShadow: "var(--shadow-card)",
       }}
     >
       {children}
@@ -83,7 +83,7 @@ export function Card({
 
 export function PageTitle({ children }: { children: ReactNode }) {
   return (
-    <h1 className="font-display text-[22px] font-medium" style={{ color: "var(--ink)" }}>
+    <h1 className="font-display text-[28px] font-bold tracking-[-0.01em]" style={{ color: "var(--navy)" }}>
       {children}
     </h1>
   );
@@ -92,7 +92,7 @@ export function PageTitle({ children }: { children: ReactNode }) {
 export function SectionHeading({ children }: { children: ReactNode }) {
   return (
     <h2
-      className="font-display text-[15px] font-medium mb-3"
+      className="font-display text-[17px] font-semibold mb-3"
       style={{ color: "var(--ink)" }}
     >
       {children}
@@ -104,19 +104,20 @@ export function StatusBadge({
   tone,
   children,
 }: {
-  tone: "neutral" | "teal" | "rust" | "brass";
+  tone: "neutral" | "teal" | "rust" | "brass" | "coral";
   children: ReactNode;
 }) {
   const toneStyles: Record<string, { bg: string; fg: string }> = {
     neutral: { bg: "var(--line-soft)", fg: "var(--steel)" },
     teal: { bg: "var(--teal-soft)", fg: "var(--teal)" },
-    rust: { bg: "var(--rust-soft)", fg: "var(--rust)" },
+    rust: { bg: "var(--rust-soft)", fg: "#8a5a12" },
     brass: { bg: "var(--brass-soft)", fg: "var(--brass)" },
+    coral: { bg: "var(--coral-soft)", fg: "var(--coral)" },
   };
   const s = toneStyles[tone];
   return (
     <span
-      className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
+      className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap"
       style={{ background: s.bg, color: s.fg }}
     >
       {children}
@@ -135,7 +136,7 @@ export function EmptyState({
 }) {
   return (
     <div
-      className="rounded-lg p-10 text-center"
+      className="rounded-[14px] p-10 text-center"
       style={{ border: "1px dashed var(--line)", background: "var(--card)" }}
     >
       <div className="font-display text-[16px] mb-1" style={{ color: "var(--ink)" }}>
@@ -169,7 +170,7 @@ export function KpiCard({
   return (
     <Card>
       <div
-        className="w-7 h-7 rounded-md flex items-center justify-center mb-3"
+        className="w-8 h-8 rounded-[9px] flex items-center justify-center mb-3"
         style={{ background: bg, color }}
       >
         {icon}
@@ -177,7 +178,7 @@ export function KpiCard({
       <div className="text-[11.5px] mb-1" style={{ color: "var(--steel)" }}>
         {label}
       </div>
-      <div className="num text-[22px] font-medium" style={{ color }}>
+      <div className="num text-[26px] font-semibold" style={{ color }}>
         {value}
       </div>
       {note && (

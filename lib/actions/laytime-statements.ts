@@ -14,6 +14,7 @@ import { and, eq } from "drizzle-orm";
 import { authorized, recordAudit } from "@/lib/auth/authorized";
 import { ForbiddenError } from "@/lib/auth/session";
 import { type ActionResult, ok, fail } from "./result";
+import { loadSettlementDayPrecision } from "./_settlement-precision";
 import { settleBalance } from "@/lib/laytime/settlement";
 import { CalculationRefused } from "@/lib/laytime/refuse";
 
@@ -75,6 +76,8 @@ export async function buildStatementDraft(
             and(eq(voyages.id, voyageId), eq(voyages.organizationId, ctx.organizationId))
           );
         if (!voyage) return fail<BuildStatementResult>("NOT_FOUND", "Voyage not found.");
+
+        const dayPrecision = await loadSettlementDayPrecision(ctx.organizationId);
 
         // Every calculated/refused port call of the voyage, with its rates.
         const rows = await db
@@ -188,6 +191,7 @@ export async function buildStatementDraft(
                 demurrageRate: Number(r.demurrageRate),
                 despatchRate: r.despatchRate === null ? null : Number(r.despatchRate),
                 despatchBasis: r.despatchBasis,
+                dayPrecision,
               });
               if (s.kind === "demurrage") demurrageTotal += s.amount;
               if (s.kind === "despatch") despatchTotal += s.amount;
@@ -253,6 +257,48 @@ export async function buildStatementDraft(
   }
 }
 
+/**
+ * True when a draft no longer reflects the current calculations: a port call
+ * of the voyage was recalculated (a recalculation replaces the calculation
+ * row, so its id changes), or gained/lost a calculation, after the draft was
+ * built. The draft's figures are a snapshot and do not follow on their own.
+ */
+async function draftIsOutdated(
+  statementId: string,
+  voyageId: string,
+  organizationId: string
+): Promise<boolean> {
+  const scopeRows = await db
+    .select({ portCallId: statementScopeResults.portCallId, calculationId: statementScopeResults.calculationId })
+    .from(statementScopeResults)
+    .where(
+      and(
+        eq(statementScopeResults.statementId, statementId),
+        eq(statementScopeResults.organizationId, organizationId)
+      )
+    );
+  const current = await db
+    .select({ portCallId: laytimeCalculations.portCallId, id: laytimeCalculations.id })
+    .from(laytimeCalculations)
+    .innerJoin(
+      voyagePortCalls,
+      and(
+        eq(voyagePortCalls.id, laytimeCalculations.portCallId),
+        eq(voyagePortCalls.organizationId, laytimeCalculations.organizationId)
+      )
+    )
+    .where(
+      and(
+        eq(voyagePortCalls.voyageId, voyageId),
+        eq(laytimeCalculations.organizationId, organizationId)
+      )
+    );
+  const built = new Map<string, string | null>();
+  for (const r of scopeRows) if (r.portCallId) built.set(r.portCallId, r.calculationId);
+  if (built.size !== current.length) return true;
+  return current.some((c) => built.get(c.portCallId) !== c.id);
+}
+
 export type FinalizeStatementResult = { statementId: string; status: "finalized" };
 
 export async function finalizeStatement(
@@ -304,6 +350,13 @@ export async function finalizeStatement(
             "There is no draft statement to finalize."
           );
         }
+        // Never lock in figures the calculations have already moved away from.
+        if (await draftIsOutdated(draft.id, voyageId, ctx.organizationId)) {
+          return fail<FinalizeStatementResult>(
+            "INVALID_STATE",
+            "A calculation changed after this draft was built. Rebuild the draft, check the figures, then finalize."
+          );
+        }
 
         await db
           .update(laytimeStatements)
@@ -342,6 +395,8 @@ export async function finalizeStatement(
 
 export type StatementScope = {
   portCallId: string | null;
+  /** The calculation this line was built from (null if since replaced/deleted). */
+  calculationId: string | null;
   scopeType: "port_call" | "pool";
   balanceOutcome: "SAVED" | "EXCEEDED" | "EXACT" | null;
   balanceSeconds: number | null;
@@ -375,6 +430,8 @@ export type StatementView = {
   /** Settled net plus adjustments: demurrageTotal − despatchTotal + adjustments.
    *  A plain netting of the settled figures; no laytime rule is applied here. */
   netClaim: number;
+  /** Draft only: a calculation changed after the draft was built. */
+  outdated: boolean;
 };
 
 export async function getStatement(
@@ -421,6 +478,7 @@ export async function getStatement(
         const scopeRows = await db
           .select({
             portCallId: statementScopeResults.portCallId,
+            calculationId: statementScopeResults.calculationId,
             scopeType: statementScopeResults.scopeType,
             balanceOutcome: statementScopeResults.balanceOutcome,
             balanceSeconds: statementScopeResults.balanceSeconds,
@@ -448,6 +506,7 @@ export async function getStatement(
           }
           return {
             portCallId: r.portCallId,
+            calculationId: r.calculationId,
             scopeType: r.scopeType,
             balanceOutcome: r.balanceOutcome,
             balanceSeconds: r.balanceSeconds === null ? null : Number(r.balanceSeconds),
@@ -490,6 +549,9 @@ export async function getStatement(
           adjustments,
           adjustmentsTotal,
           netClaim: demurrageTotal - despatchTotal + adjustmentsTotal,
+          outdated:
+            statement.status === "draft" &&
+            (await draftIsOutdated(statement.id, voyageId, ctx.organizationId)),
         });
       }
     );

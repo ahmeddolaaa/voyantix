@@ -1,0 +1,1 @@
+ALTER TABLE "contract_laytime_terms" ADD COLUMN "once_on_demurrage" boolean DEFAULT false NOT NULL;

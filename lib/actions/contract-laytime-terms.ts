@@ -8,11 +8,20 @@ import {
   voyagePortCalls,
   laytimeStatements,
   laytimeCalculations,
+  contractStoppageRules,
 } from "@/db/schema";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { authorized, recordAudit } from "@/lib/auth/authorized";
 import { ForbiddenError } from "@/lib/auth/session";
 import { type ActionResult, ok, fail, withDatabaseErrors } from "./result";
+import {
+  COMMENCEMENT_EVENTS,
+  COMMENCEMENT_TIME_RULES,
+  LAYTIME_END_EVENTS,
+  ALLOWANCE_UNITS,
+  DESPATCH_BASES,
+  isOneOf,
+} from "@/lib/laytime/term-vocabulary";
 
 /**
  * CONTRACT LAYTIME TERM — the commercial values of a fixture.
@@ -42,14 +51,20 @@ export type ContractLaytimeTermRow = {
   function: TermFunction;
   portId: string | null;
   cargoId: string | null;
+  allowanceBasis: string;
   allowance: string;
   allowanceUnit: string;
+  allowanceRate: string | null;
   demurrageRate: string;
   despatchRate: string | null;
   despatchBasis: string | null;
   turnTimeHours: string | null;
   turnTimeTrigger: string | null;
   commencementRule: string;
+  commencementTimeRule: string;
+  onceOnDemurrage: boolean;
+  laytimeEndEvent: string;
+  laytimeClauseText: string | null;
   ruleSetVersionId: string;
   poolId: string | null;
   status: "active" | "inactive";
@@ -76,14 +91,26 @@ export type ContractLaytimeTermInput = {
   function: TermFunction;
   portId?: string | null;
   cargoId?: string | null;
+  /** "FIXED" (default) or "RATE". */
+  allowanceBasis?: string | null;
   allowance: string;
   allowanceUnit: string;
+  /** MT-per-day rate; required when allowanceBasis = RATE. */
+  allowanceRate?: string | null;
   demurrageRate: string;
   despatchRate?: string | null;
   despatchBasis?: string | null;
   turnTimeHours?: string | null;
   turnTimeTrigger?: string | null;
   commencementRule: string;
+  /** "AT_EVENT" (default) or "MORNING_NOR_1400". */
+  commencementTimeRule?: string | null;
+  /** "Once on demurrage, always on demurrage" clause (default false). */
+  onceOnDemurrage?: boolean | null;
+  /** Default laytime-end event (OPS_COMPLETED | LASHING_COMPLETED | DOCUMENTS_ON_BOARD). */
+  laytimeEndEvent?: string | null;
+  /** The laytime clause as written in the C/P — display only. */
+  laytimeClauseText?: string | null;
   ruleSetVersionId: string;
   poolId?: string | null;
 };
@@ -92,14 +119,20 @@ type ValidatedTerm = {
   function: TermFunction;
   portId: string | null;
   cargoId: string | null;
+  allowanceBasis: string;
   allowance: string;
   allowanceUnit: string;
+  allowanceRate: string | null;
   demurrageRate: string;
   despatchRate: string | null;
   despatchBasis: string | null;
   turnTimeHours: string | null;
   turnTimeTrigger: string | null;
   commencementRule: string;
+  commencementTimeRule: string;
+  onceOnDemurrage: boolean;
+  laytimeEndEvent: string;
+  laytimeClauseText: string | null;
   ruleSetVersionId: string;
   poolId: string | null;
 };
@@ -118,10 +151,33 @@ function validateTermInput(
     return fail("VALIDATION_ERROR", "Function must be LOAD or DISCHARGE.");
   }
 
-  const allowance = (input.allowance ?? "").trim();
-  if (!NUMERIC.test(allowance)) {
-    return fail("VALIDATION_ERROR", "Allowance must be a number.");
+  const allowanceBasis = input.allowanceBasis === "RATE" ? "RATE" : "FIXED";
+
+  // A RATE term is settled from actual cargo quantity ÷ rate, so it needs a
+  // positive rate and leaves the fixed allowance neutral; a FIXED term needs a
+  // numeric allowance in a defined unit, exactly as before.
+  let allowance: string;
+  let allowanceUnit: string;
+  let allowanceRate: string | null;
+  if (allowanceBasis === "RATE") {
+    allowanceRate = (input.allowanceRate ?? "").trim();
+    if (!NUMERIC.test(allowanceRate) || Number(allowanceRate) <= 0) {
+      return fail("VALIDATION_ERROR", "Rate must be a positive number (MT per day).");
+    }
+    allowance = "0";
+    allowanceUnit = "days";
+  } else {
+    allowance = (input.allowance ?? "").trim();
+    if (!NUMERIC.test(allowance)) {
+      return fail("VALIDATION_ERROR", "Allowance must be a number.");
+    }
+    allowanceUnit = (input.allowanceUnit ?? "").trim();
+    if (!isOneOf(ALLOWANCE_UNITS, allowanceUnit)) {
+      return fail("VALIDATION_ERROR", "Allowance unit must be days or hours.");
+    }
+    allowanceRate = null;
   }
+
   const demurrageRate = (input.demurrageRate ?? "").trim();
   if (!NUMERIC.test(demurrageRate)) {
     return fail("VALIDATION_ERROR", "Demurrage rate must be a number.");
@@ -136,13 +192,47 @@ function validateTermInput(
     return fail("VALIDATION_ERROR", "Turn time hours must be a number.");
   }
 
-  const allowanceUnit = (input.allowanceUnit ?? "").trim();
-  if (allowanceUnit === "") {
-    return fail("VALIDATION_ERROR", "Allowance unit is required.");
+  // Turn time: a duration needs a recognised trigger event; no duration means
+  // no trigger is stored.
+  let turnTimeTrigger: string | null = null;
+  if (turnTimeHours !== null) {
+    turnTimeTrigger = trimOrNull(input.turnTimeTrigger);
+    if (!isOneOf(COMMENCEMENT_EVENTS, turnTimeTrigger)) {
+      return fail("VALIDATION_ERROR", "Choose the event turn time starts from.");
+    }
   }
+
   const commencementRule = (input.commencementRule ?? "").trim();
-  if (commencementRule === "") {
-    return fail("VALIDATION_ERROR", "Commencement rule is required.");
+  if (!isOneOf(COMMENCEMENT_EVENTS, commencementRule)) {
+    return fail("VALIDATION_ERROR", "Choose the event laytime commences from.");
+  }
+
+  const commencementTimeRule = trimOrNull(input.commencementTimeRule) ?? "AT_EVENT";
+  if (!isOneOf(COMMENCEMENT_TIME_RULES, commencementTimeRule)) {
+    return fail("VALIDATION_ERROR", "An invalid commencement time rule was provided.");
+  }
+  // The 14:00 rule is itself the grace period; combining it with turn time
+  // would stack two grace mechanisms the engine does not define together.
+  if (commencementTimeRule !== "AT_EVENT" && turnTimeHours !== null) {
+    return fail(
+      "VALIDATION_ERROR",
+      "Use either turn time or the 12:00/14:00 commencement rule, not both."
+    );
+  }
+
+  const laytimeEndEvent = trimOrNull(input.laytimeEndEvent) ?? "OPS_COMPLETED";
+  if (!isOneOf(LAYTIME_END_EVENTS, laytimeEndEvent)) {
+    return fail("VALIDATION_ERROR", "Choose the event laytime ends at.");
+  }
+
+  const laytimeClauseText = trimOrNull(input.laytimeClauseText);
+  if (laytimeClauseText !== null && laytimeClauseText.length > 200) {
+    return fail("VALIDATION_ERROR", "The C/P laytime clause must be 200 characters or fewer.");
+  }
+
+  const despatchBasis = trimOrNull(input.despatchBasis);
+  if (despatchBasis !== null && !isOneOf(DESPATCH_BASES, despatchBasis)) {
+    return fail("VALIDATION_ERROR", "An invalid despatch basis was provided.");
   }
 
   const ruleSetVersionId = (input.ruleSetVersionId ?? "").trim();
@@ -154,14 +244,20 @@ function validateTermInput(
     function: input.function,
     portId: trimOrNull(input.portId),
     cargoId: trimOrNull(input.cargoId),
+    allowanceBasis,
     allowance,
     allowanceUnit,
+    allowanceRate,
     demurrageRate,
     despatchRate,
-    despatchBasis: trimOrNull(input.despatchBasis),
+    despatchBasis,
     turnTimeHours,
-    turnTimeTrigger: trimOrNull(input.turnTimeTrigger),
+    turnTimeTrigger,
     commencementRule,
+    commencementTimeRule,
+    onceOnDemurrage: input.onceOnDemurrage === true,
+    laytimeEndEvent,
+    laytimeClauseText,
     ruleSetVersionId,
     poolId: trimOrNull(input.poolId),
   });
@@ -309,14 +405,20 @@ export async function createContractLaytimeTerm(
           function: v.function,
           portId: v.portId,
           cargoId: v.cargoId,
+          allowanceBasis: v.allowanceBasis,
           allowance: v.allowance,
           allowanceUnit: v.allowanceUnit,
+          allowanceRate: v.allowanceRate,
           demurrageRate: v.demurrageRate,
           despatchRate: v.despatchRate,
           despatchBasis: v.despatchBasis,
           turnTimeHours: v.turnTimeHours,
           turnTimeTrigger: v.turnTimeTrigger,
           commencementRule: v.commencementRule,
+          commencementTimeRule: v.commencementTimeRule,
+          onceOnDemurrage: v.onceOnDemurrage,
+          laytimeEndEvent: v.laytimeEndEvent,
+          laytimeClauseText: v.laytimeClauseText,
           ruleSetVersionId: v.ruleSetVersionId,
           poolId: v.poolId,
         })
@@ -399,14 +501,20 @@ export async function updateContractLaytimeTerm(
         function: v.function,
         portId: v.portId,
         cargoId: v.cargoId,
+        allowanceBasis: v.allowanceBasis,
         allowance: v.allowance,
         allowanceUnit: v.allowanceUnit,
+        allowanceRate: v.allowanceRate,
         demurrageRate: v.demurrageRate,
         despatchRate: v.despatchRate,
         despatchBasis: v.despatchBasis,
         turnTimeHours: v.turnTimeHours,
         turnTimeTrigger: v.turnTimeTrigger,
         commencementRule: v.commencementRule,
+        commencementTimeRule: v.commencementTimeRule,
+        onceOnDemurrage: v.onceOnDemurrage,
+        laytimeEndEvent: v.laytimeEndEvent,
+        laytimeClauseText: v.laytimeClauseText,
         ruleSetVersionId: v.ruleSetVersionId,
         poolId: v.poolId,
       };
@@ -457,6 +565,33 @@ export async function updateContractLaytimeTerm(
               eq(contractLaytimeTerms.organizationId, ctx.organizationId)
             )
           );
+
+        // The contract's stoppage rules belong to the term; carry them to the
+        // new version so it calculates exactly like the one it replaces.
+        const oldRules = await tx
+          .select({
+            stoppageReasonId: contractStoppageRules.stoppageReasonId,
+            countability: contractStoppageRules.countability,
+            excludedOnDemurrage: contractStoppageRules.excludedOnDemurrage,
+          })
+          .from(contractStoppageRules)
+          .where(
+            and(
+              eq(contractStoppageRules.termId, termId),
+              eq(contractStoppageRules.organizationId, ctx.organizationId)
+            )
+          );
+        if (oldRules.length > 0) {
+          await tx.insert(contractStoppageRules).values(
+            oldRules.map((r) => ({
+              organizationId: ctx.organizationId,
+              termId: newTerm.id,
+              stoppageReasonId: r.stoppageReasonId,
+              countability: r.countability,
+              excludedOnDemurrage: r.excludedOnDemurrage,
+            }))
+          );
+        }
 
         await tx
           .update(voyagePortCalls)

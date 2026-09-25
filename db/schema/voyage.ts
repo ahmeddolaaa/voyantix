@@ -123,6 +123,9 @@ export const voyagePortCalls = pgTable(
     status: portCallStatusEnum("status").notNull().default("ACTIVE"),
     effectiveTimezone: text("effective_timezone").notNull(),
     contractLaytimeTermId: uuid("contract_laytime_term_id"),
+    // Per-vessel override of the term's laytime-end event (e.g. documents
+    // took very long to be signed on this call). Null = use the term default.
+    laytimeEndOverride: text("laytime_end_override"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
