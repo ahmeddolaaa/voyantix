@@ -21,7 +21,7 @@ async function main() {
   const password = process.env.SEED_PASSWORD ?? "voyantix";
 
   // Only a truly EMPTY database is bootstrapped. Production runs this on every
-  // deploy; once any company exists (e.g. the Bulk Trading demo seed) it must
+  // deploy; once any company exists (e.g. the demo seed) it must
   // not add a second company with a well-known login.
   const anyOrg = await db.select({ id: organizations.id }).from(organizations).limit(1);
   if (anyOrg.length > 0) {

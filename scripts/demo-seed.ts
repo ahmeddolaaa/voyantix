@@ -1,6 +1,6 @@
 /**
  * DEMO SEED — wipes EVERY row in the database and builds one fictional
- * company ("Bulk Trading") with master data, contracts, three vessels working
+ * company ("Voyantix Demo") with master data, contracts, three vessels working
  * right now and six finished voyages spread over the last six months. All
  * names are invented. Times are relative to the moment the script runs, so
  * the "working now" vessels are live whenever it is run.
@@ -120,7 +120,7 @@ async function main() {
   console.log(`Wiped ${tables.rows.length} tables.`);
 
   // ------------------------------------------------------------- company
-  const [org] = await db.insert(organizations).values({ name: "Bulk Trading", slug: "bulk-trading" }).returning();
+  const [org] = await db.insert(organizations).values({ name: "Voyantix Demo", slug: "voyantix-demo" }).returning();
   const O = org.id;
   await db.insert(companyConfigurations).values({
     organizationId: O,
@@ -133,11 +133,11 @@ async function main() {
   const hash = await hashPassword(password);
   const [ahmed] = await db
     .insert(users)
-    .values({ email: "ahmed@bulk-trading.com", passwordHash: hash, name: "Ahmed Adel" })
+    .values({ email: "ahmed@voyantix-demo.example", passwordHash: hash, name: "Ahmed Adel" })
     .returning();
   const [karim] = await db
     .insert(users)
-    .values({ email: "karim@bulk-trading.com", passwordHash: hash, name: "Karim Samir" })
+    .values({ email: "karim@voyantix-demo.example", passwordHash: hash, name: "Karim Samir" })
     .returning();
   await db.insert(memberships).values([
     { userId: ahmed.id, organizationId: O, role: "admin" },
@@ -154,11 +154,11 @@ async function main() {
 
   // --------------------------------------------------------- master data
   const portDefs = [
-    { name: "Alexandria", country: "EG", unlocode: "EGALY", tz: "Africa/Cairo", fac: ["Quay 85", "Quay 86"] },
-    { name: "Damietta", country: "EG", unlocode: "EGDAM", tz: "Africa/Cairo", fac: ["Berth 7"] },
-    { name: "Jebel Ali", country: "AE", unlocode: "AEJEA", tz: "Asia/Dubai", fac: ["Berth 12"] },
-    { name: "Gemlik", country: "TR", unlocode: "TRGEM", tz: "Europe/Istanbul", fac: ["Berth 2"] },
-    { name: "Constanta", country: "RO", unlocode: "ROCND", tz: "Europe/Bucharest", fac: ["Berth 80"] },
+    { name: "Alexandria", country: "EG", unlocode: "EGALY", tz: "Africa/Cairo", fac: ["Berth A1", "Berth A2"] },
+    { name: "Damietta", country: "EG", unlocode: "EGDAM", tz: "Africa/Cairo", fac: ["Berth B1"] },
+    { name: "Jebel Ali", country: "AE", unlocode: "AEJEA", tz: "Asia/Dubai", fac: ["Berth C1"] },
+    { name: "Gemlik", country: "TR", unlocode: "TRGEM", tz: "Europe/Istanbul", fac: ["Berth D1"] },
+    { name: "Constanta", country: "RO", unlocode: "ROCND", tz: "Europe/Bucharest", fac: ["Berth E1"] },
   ];
   const portId: Record<string, string> = {};
   const portTz: Record<string, string> = {};
@@ -176,7 +176,7 @@ async function main() {
     }
   }
 
-  const cargoNames = ["Rebar B500B", "Wire rod SAE1008", "HRC coils", "Billets 5SP"];
+  const cargoNames = ["Wheat", "Urea (granular)", "Clinker", "Steel products"];
   const cargoId: Record<string, string> = {};
   for (const c of cargoNames) {
     const [row] = await db.insert(cargoes).values({ organizationId: O, name: c }).returning();
@@ -184,8 +184,8 @@ async function main() {
   }
 
   const vesselNames = [
-    "MV CAPE HALDEN", "MV SEA LANTERN", "MV NORTHERN GRACE", "MV AURORA STAR",
-    "MV BLUE MERIDIAN", "MV IRON WREN", "MV SILVER TERN", "MV CORAL BAY", "MV ORION PEAK", "MV ATLAS DAWN",
+    "MV CAPE HALDEN", "MV SEA LANTERN", "MV TALLIS REACH", "MV AMBERLEY SOUND",
+    "MV HESPER VALE", "MV IRON WREN", "MV QUILLON BAY", "MV MARRICK POINT", "MV ORION PEAK", "MV ATLAS DAWN",
   ];
   for (const v of vesselNames) await db.insert(vessels).values({ organizationId: O, name: v });
 
@@ -224,9 +224,9 @@ async function main() {
       .returning();
     return c.id;
   }
-  const cSolen = await contract("CP-2026-014", "Solen Shipping", 200);
-  const cKestrel = await contract("CP-2026-021", "Kestrel Bulk Carriers", 190);
-  const cMarlowe = await contract("CP-2026-027", "Marlowe Maritime", 185);
+  const cTessaline = await contract("CP-2026-014", "Tessaline Chartering", 200);
+  const cBrisewood = await contract("CP-2026-021", "Brisewood Maritime", 190);
+  const cCorvell = await contract("CP-2026-027", "Corvell Bulk", 185);
 
   type TermDef = {
     contract: string;
@@ -246,25 +246,25 @@ async function main() {
   };
   const termDefs: Record<string, TermDef> = {
     alexLoad: {
-      contract: cSolen, fn: "LOAD", port: "Alexandria", rate: 3000, dem: 12000, des: 6000, rs: rsFshex,
+      contract: cTessaline, fn: "LOAD", port: "Alexandria", rate: 3000, dem: 12000, des: 6000, rs: rsFshex,
       commencementRule: "NOR_TENDERED", timeRule: "MORNING_NOR_1400", turnTime: null, oodaod: true,
-      end: "LASHING_COMPLETED", clause: "3000 MT PWWD FSHEX EIU",
+      end: "OPS_COMPLETED", clause: "3000 MT PWWD FSHEX EIU",
       stops: { Rain: "AlwaysExcluded", "Friday prayer": "AlwaysExcluded", "Crane breakdown": "AlwaysExcluded", Shifting: "AlwaysExcluded" },
     },
     damLoad: {
-      contract: cKestrel, fn: "LOAD", port: "Damietta", rate: 4000, dem: 14000, des: 7000, rs: rsShinc,
+      contract: cBrisewood, fn: "LOAD", port: "Damietta", rate: 4000, dem: 14000, des: 7000, rs: rsShinc,
       commencementRule: "NOR_ACCEPTED", timeRule: "AT_EVENT", turnTime: 6, oodaod: false,
       end: "OPS_COMPLETED", clause: "4000 MT PWWD SHINC, 6 hours turn time",
       stops: { Rain: "AlwaysExcluded", "Crane breakdown": "AlwaysExcluded" },
     },
     jeaDisch: {
-      contract: cMarlowe, fn: "DISCHARGE", port: "Jebel Ali", rate: 5000, dem: 15000, des: 7500, rs: rsShinc,
+      contract: cCorvell, fn: "DISCHARGE", port: "Jebel Ali", rate: 5000, dem: 15000, des: 7500, rs: rsShinc,
       commencementRule: "NOR_ACCEPTED", timeRule: "AT_EVENT", turnTime: 6, oodaod: true,
       end: "OPS_COMPLETED", clause: "5000 MT PWWD SHINC, 6 hours turn time",
       stops: { Rain: "AlwaysExcluded", Shifting: "AlwaysExcluded" },
     },
     gemDisch: {
-      contract: cSolen, fn: "DISCHARGE", port: "Gemlik", rate: 4500, dem: 13000, des: 6500, rs: rsShinc,
+      contract: cTessaline, fn: "DISCHARGE", port: "Gemlik", rate: 4500, dem: 13000, des: 6500, rs: rsShinc,
       commencementRule: "NOR_ACCEPTED", timeRule: "AT_EVENT", turnTime: 6, oodaod: true,
       end: "OPS_COMPLETED", clause: "4500 MT PWWD SHINC, 6 hours turn time",
       stops: { Rain: "AlwaysExcluded" },
@@ -309,8 +309,8 @@ async function main() {
   const calls: CallSpec[] = [
     // ---- working now
     {
-      ref: "VOY-260019", vessel: "MV CAPE HALDEN", termKey: "alexLoad", fn: "LOAD", port: "Alexandria", facility: "Quay 85",
-      cargo: [{ name: "Rebar B500B", planned: 8000 }, { name: "Wire rod SAE1008", planned: 4500 }],
+      ref: "VOY-260019", vessel: "MV CAPE HALDEN", termKey: "alexLoad", fn: "LOAD", port: "Alexandria", facility: "Berth A1",
+      cargo: [{ name: "Urea (granular)", planned: 8000 }, { name: "Clinker", planned: 4500 }],
       handled: 6420, finished: false, cranes: ["Crane 1", "Crane 2", "Crane 3"],
       events: [["ARRIVED", ago(60)], ["NOR_TENDERED", ago(56)], ["BERTHED", ago(49)], ["OPS_COMMENCED", ago(46)]],
       stops: [
@@ -319,23 +319,23 @@ async function main() {
       ],
     },
     {
-      ref: "VOY-260018", vessel: "MV SEA LANTERN", termKey: "damLoad", fn: "LOAD", port: "Damietta", facility: "Berth 7",
-      cargo: [{ name: "Billets 5SP", planned: 18000 }],
+      ref: "VOY-260018", vessel: "MV SEA LANTERN", termKey: "damLoad", fn: "LOAD", port: "Damietta", facility: "Berth B1",
+      cargo: [{ name: "Urea (granular)", planned: 18000 }],
       handled: 12600, finished: false, cranes: ["Crane A", "Crane B"],
       events: [["ARRIVED", ago(90)], ["NOR_TENDERED", ago(86)], ["NOR_ACCEPTED", ago(85)], ["BERTHED", ago(80)], ["OPS_COMMENCED", ago(78)]],
       stops: [{ reason: "Rain", start: ago(40), end: ago(37) }],
     },
     {
-      ref: "VOY-260017", vessel: "MV NORTHERN GRACE", termKey: "jeaDisch", fn: "DISCHARGE", port: "Jebel Ali", facility: "Berth 12",
-      cargo: [{ name: "Rebar B500B", planned: 30000 }],
+      ref: "VOY-260017", vessel: "MV TALLIS REACH", termKey: "jeaDisch", fn: "DISCHARGE", port: "Jebel Ali", facility: "Berth C1",
+      cargo: [{ name: "Wheat", planned: 30000 }],
       handled: 27400, finished: false, cranes: ["Crane 1", "Crane 2"],
       events: [["ARRIVED", ago(190)], ["NOR_TENDERED", ago(186)], ["NOR_ACCEPTED", ago(185)], ["BERTHED", ago(170)], ["OPS_COMMENCED", ago(168)]],
       stops: [{ reason: "Shifting", start: ago(100), end: ago(97) }],
     },
     // ---- finished, newest first
     {
-      ref: "VOY-260016", vessel: "MV AURORA STAR", termKey: "alexLoad", fn: "LOAD", port: "Alexandria", facility: "Quay 86",
-      cargo: [{ name: "HRC coils", planned: 3052.403 }], handled: 3052.403, finished: true, cranes: ["Crane 1"], statement: "draft",
+      ref: "VOY-260016", vessel: "MV AMBERLEY SOUND", termKey: "alexLoad", fn: "LOAD", port: "Alexandria", facility: "Berth A2",
+      cargo: [{ name: "Steel products", planned: 3052.403 }], handled: 3052.403, finished: true, cranes: ["Crane 1"], statement: "draft",
       events: [
         ["ARRIVED", at(A, 16, "21:25")], ["NOR_TENDERED", at(A, 14, "00:01")], ["BERTHED", at(A, 12, "08:00")],
         ["OPS_COMMENCED", at(A, 12, "15:50")], ["OPS_COMPLETED", at(A, 9, "00:05")], ["LASHING_COMPLETED", at(A, 9, "00:10")],
@@ -347,18 +347,18 @@ async function main() {
       ],
     },
     {
-      ref: "VOY-260015", vessel: "MV BLUE MERIDIAN", termKey: "alexLoad", fn: "LOAD", port: "Alexandria", facility: "Quay 85",
-      cargo: [{ name: "Rebar B500B", planned: 12000 }], handled: 12000, finished: true, cranes: ["Crane 1", "Crane 2", "Crane 3"], statement: "final",
+      ref: "VOY-260015", vessel: "MV HESPER VALE", termKey: "alexLoad", fn: "LOAD", port: "Alexandria", facility: "Berth A1",
+      cargo: [{ name: "Clinker", planned: 12000 }], handled: 12000, finished: true, cranes: ["Crane 1", "Crane 2", "Crane 3"], statement: "final",
       events: [
         ["ARRIVED", at(A, 41, "06:40")], ["NOR_TENDERED", at(A, 41, "09:30")], ["BERTHED", at(A, 41, "16:00")],
-        ["OPS_COMMENCED", at(A, 41, "18:00")], ["OPS_COMPLETED", at(A, 39, "20:00")], ["LASHING_COMPLETED", at(A, 39, "22:30")],
+        ["OPS_COMMENCED", at(A, 41, "18:00")], ["OPS_COMPLETED", at(A, 39, "20:00")],
         ["DOCUMENTS_ON_BOARD", at(A, 39, "23:30")], ["DEPARTED", at(A, 38, "04:00")],
       ],
       stops: [],
     },
     {
-      ref: "VOY-260014", vessel: "MV IRON WREN", termKey: "jeaDisch", fn: "DISCHARGE", port: "Jebel Ali", facility: "Berth 12",
-      cargo: [{ name: "Rebar B500B", planned: 25000 }], handled: 25000, finished: true, cranes: ["Crane 1", "Crane 2"], statement: "final",
+      ref: "VOY-260014", vessel: "MV IRON WREN", termKey: "jeaDisch", fn: "DISCHARGE", port: "Jebel Ali", facility: "Berth C1",
+      cargo: [{ name: "Wheat", planned: 25000 }], handled: 25000, finished: true, cranes: ["Crane 1", "Crane 2"], statement: "final",
       events: [
         ["ARRIVED", at(J, 72, "04:00")], ["NOR_TENDERED", at(J, 72, "06:00")], ["NOR_ACCEPTED", at(J, 72, "08:00")],
         ["BERTHED", at(J, 71, "10:00")], ["OPS_COMMENCED", at(J, 71, "12:00")], ["OPS_COMPLETED", at(J, 64, "18:37")],
@@ -367,8 +367,8 @@ async function main() {
       stops: [{ reason: "Shifting", start: at(J, 68, "09:00"), end: at(J, 68, "13:00") }],
     },
     {
-      ref: "VOY-260013", vessel: "MV SILVER TERN", termKey: "damLoad", fn: "LOAD", port: "Damietta", facility: "Berth 7",
-      cargo: [{ name: "Billets 5SP", planned: 16000 }], handled: 16000, finished: true, cranes: ["Crane A", "Crane B"], statement: "final",
+      ref: "VOY-260013", vessel: "MV QUILLON BAY", termKey: "damLoad", fn: "LOAD", port: "Damietta", facility: "Berth B1",
+      cargo: [{ name: "Urea (granular)", planned: 16000 }], handled: 16000, finished: true, cranes: ["Crane A", "Crane B"], statement: "final",
       events: [
         ["ARRIVED", at(A, 103, "02:00")], ["NOR_TENDERED", at(A, 103, "04:00")], ["NOR_ACCEPTED", at(A, 103, "07:00")],
         ["BERTHED", at(A, 103, "12:00")], ["OPS_COMMENCED", at(A, 103, "14:00")], ["OPS_COMPLETED", at(A, 101, "02:40")],
@@ -377,8 +377,8 @@ async function main() {
       stops: [],
     },
     {
-      ref: "VOY-260012", vessel: "MV CORAL BAY", termKey: "gemDisch", fn: "DISCHARGE", port: "Gemlik", facility: "Berth 2",
-      cargo: [{ name: "Wire rod SAE1008", planned: 18000 }], handled: 18000, finished: true, cranes: ["Crane 1", "Crane 2"], statement: "final",
+      ref: "VOY-260012", vessel: "MV MARRICK POINT", termKey: "gemDisch", fn: "DISCHARGE", port: "Gemlik", facility: "Berth D1",
+      cargo: [{ name: "Steel products", planned: 18000 }], handled: 18000, finished: true, cranes: ["Crane 1", "Crane 2"], statement: "final",
       events: [
         ["ARRIVED", at(G, 135, "10:00")], ["NOR_TENDERED", at(G, 135, "11:00")], ["NOR_ACCEPTED", at(G, 135, "13:00")],
         ["BERTHED", at(G, 134, "07:00")], ["OPS_COMMENCED", at(G, 134, "09:00")], ["OPS_COMPLETED", at(G, 129, "15:20")],
@@ -387,8 +387,8 @@ async function main() {
       stops: [{ reason: "Rain", start: at(G, 132, "06:00"), end: at(G, 132, "11:00") }],
     },
     {
-      ref: "VOY-260011", vessel: "MV ORION PEAK", termKey: "alexLoad", fn: "LOAD", port: "Alexandria", facility: "Quay 86",
-      cargo: [{ name: "Rebar B500B", planned: 6000 }, { name: "Wire rod SAE1008", planned: 3000 }], handled: 9000, finished: true,
+      ref: "VOY-260011", vessel: "MV ORION PEAK", termKey: "alexLoad", fn: "LOAD", port: "Alexandria", facility: "Berth A2",
+      cargo: [{ name: "Clinker", planned: 6000 }, { name: "Steel products", planned: 3000 }], handled: 9000, finished: true,
       cranes: ["Crane 1", "Crane 2"], statement: "final",
       events: [
         ["ARRIVED", at(A, 164, "18:00")], ["NOR_TENDERED", at(A, 163, "10:00")], ["BERTHED", at(A, 162, "06:00")],
@@ -503,16 +503,16 @@ async function main() {
     // SOF-upload part of the demo.
     const [va] = await db
       .insert(voyages)
-      .values({ organizationId: O, voyageReference: "VOY-260020", vesselName: "MV ATLAS DAWN", contractId: cSolen, status: "ACTIVE", createdAt: ago(20) })
+      .values({ organizationId: O, voyageReference: "VOY-260020", vesselName: "MV ATLAS DAWN", contractId: cTessaline, status: "ACTIVE", createdAt: ago(20) })
       .returning();
     const [pca] = await db
       .insert(voyagePortCalls)
       .values({
-        organizationId: O, voyageId: va.id, portId: portId["Alexandria"], facilityId: facId["Alexandria/Quay 85"],
+        organizationId: O, voyageId: va.id, portId: portId["Alexandria"], facilityId: facId["Alexandria/Berth A1"],
         function: "LOAD", sequence: 1, status: "ACTIVE", effectiveTimezone: A, contractLaytimeTermId: termId.alexLoad,
       })
       .returning();
-    await db.insert(cargoPlans).values({ organizationId: O, portCallId: pca.id, cargoId: cargoId["Rebar B500B"], plannedQuantityMt: "7500" });
+    await db.insert(cargoPlans).values({ organizationId: O, portCallId: pca.id, cargoId: cargoId["Clinker"], plannedQuantityMt: "7500" });
     summary.push("VOY-260020 MV ATLAS DAWN     waiting — for the SOF upload demo");
   });
 
@@ -520,9 +520,9 @@ async function main() {
   const { sessions } = await import("@/db/schema");
   await db.delete(sessions).where(eq(sessions.id, token));
 
-  console.log("\nDemo company: Bulk Trading");
-  console.log("  Admin      : ahmed@bulk-trading.com (Ahmed Adel)");
-  console.log("  Operations : karim@bulk-trading.com (Karim Samir)");
+  console.log("\nDemo company: Voyantix Demo");
+  console.log("  Admin      : ahmed@voyantix-demo.example (Ahmed Adel)");
+  console.log("  Operations : karim@voyantix-demo.example (Karim Samir)");
   console.log("  Password   : the DEMO_PASSWORD you set\n");
   for (const l of summary) console.log("  " + l);
   await pool.end();
